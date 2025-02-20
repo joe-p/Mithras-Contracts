@@ -1,0 +1,5 @@
+generated
+deployed/devnet
+*.env
+.env.*
+.log

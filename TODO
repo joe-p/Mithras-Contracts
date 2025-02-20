@@ -1,0 +1,14 @@
+* make the zero hashes automatically inserted by code in APP.py
+* revise how we deploy the contract by network
+
+Notes
+
+AVM max opcode budget: 20,700 * 16 + 256*700 = 331,200 + 179,200 = 510,400
+JJ > It's simpler. A Logicsig can be an app call. So you can get 20,700 * 16 from top-level txns (app calls signed by logicsigs) + 256*700 from inners.
+
+Tests
+* test withdrawing to an algorand address bigger than modulus (will probably need to take the modulus first before adding to public inputs since the verifires expects public inputs to be in the curve field but an Algorand address might represent a number larger than the field modulus)
+* test using a dummy lsig instead of the correct verifier
+* test having proper lsig as sender but no signer
+* test call to `validate_manager` with logicsig signer and manager sender
+* test extra_txn_fee for withdrawals

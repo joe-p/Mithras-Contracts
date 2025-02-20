@@ -1,0 +1,29 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "38a26e6c739a6f575a853235161e97b90c6797e68cf642752a57b2b27838ef11"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "python_version": "3.12"
+        },
+        "sources": [
+            {
+                "name": "pypi",
+                "url": "https://pypi.org/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {},
+    "develop": {
+        "algorand-python": {
+            "hashes": [
+                "sha256:0f70331ddc6d5aabdcf1dade8ca997a8197dc6ec85dbaad59ebf41e63de96f01"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.12' and python_version < '4.0'",
+            "version": "==2.5.0"
+        }
+    }
+}
