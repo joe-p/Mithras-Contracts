@@ -12,7 +12,7 @@ from algopy import (
 )
 from algopy.arc4 import arc4_signature
 
-withdrawal_min_fee_multiplier = 44
+withdrawal_min_fee_multiplier = 47
 extra_txn_fee_arg_position = 5
 
 @logicsig

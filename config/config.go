@@ -33,8 +33,8 @@ const (
 	DepositOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 900
 
 	// fees needed for a withdrawal transaction group
-	WithdrawalMinFeeMultiplier = 44
-	WithdrawalOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 1600
+	WithdrawalMinFeeMultiplier = 47
+	WithdrawalOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 3700
 )
 
 type HashFunc = func(...[]byte) []byte

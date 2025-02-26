@@ -141,7 +141,7 @@ The commitments to the deposits (user deposits or "change" deposits) are stored 
 
 With a 24 level tree which can support 2^24 leaves, that is over 16 million deposits/changes, and a 32 byte tree node representation, the storage requirement will be 24 * 32 = 768 bytes, excluding the root.
 
-We maintain on-chain the last 100 roots for user convenience to support concurrent operations, so we need an additional 100 * 32 = 3200 bytes
+We maintain on-chain the last 50 roots for user convenience to support concurrent operations, so we need an additional 50 * 32 = 1600 bytes
 
 Note that frontends will need to read from the blockchain all the inserted leaves to compute merkle proofs and build withdrawal transactions.
 
@@ -151,7 +151,7 @@ Nullifiers are needed to prevent a deposit to be withdrawn from twice. With a 24
 
 ### Roots
 
-To avoid a situation where concurrent transactions submit a withdrawal zk-proof using the same recent tree root and only the first can succeed, the application maintains a list of the last 100 roots and checks withdrawal proofs against them.
+To avoid a situation where concurrent transactions submit a withdrawal zk-proof using the same recent tree root and only the first can succeed, the application maintains a list of the last 50 roots and checks withdrawal proofs against them.
 
 ### Hash function
 

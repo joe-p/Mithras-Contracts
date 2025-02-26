@@ -19,7 +19,8 @@ func TestMain(t *testing.T) {
 	f := NewAppFrontend()
 
 	account := crypto.GenerateAccount()
-	err := avm.EnsureFunded(account.Address.String(), 1000*1e6)
+	err := avm.EnsureFunded(account.Address.String(), 10000*1e6)
+
 	if err != nil {
 		t.Fatalf("Error funding account: %s", err)
 	}
@@ -63,17 +64,19 @@ func TestMain(t *testing.T) {
 		t.Fatalf("Withdrawal should have failed but it didn't")
 	}
 
-	// // now we make 100 deposits and 1 withdrawal
-	// for i := 1; i <= 100; i++ {
-	// 	deposit, err = f.SendDeposit(&account, 1*1e6)
-	// 	if err != nil {
-	// 		t.Fatalf("Error making deposit %d/100: %s", i, err)
-	// 	}
-	// }
-	// _, err = f.SendWithdrawal(&account, 0.1*1e6, false, 0, deposit.Note)
-	// if err != nil {
-	// 	t.Fatalf("Error making final withdrawal: %s", err)
-	// }
+	// now we make 1 deposit and 100 withdrawal
+	deposit, err = f.SendDeposit(&account, 1000*1e6)
+	if err != nil {
+		t.Fatalf("Error making deposit0: %s", err)
+	}
+	note := deposit.Note
+	for i := 1; i <= 100; i++ {
+		w, err := f.SendWithdrawal(&account, 0.1*1e6, false, 0, note)
+		if err != nil {
+			t.Fatalf("Error making withdrawal %d/100: %s", i, err)
+		}
+		note = w.Note
+	}
 
 	// bold success :)
 	fmt.Printf("\033[1m\nAll tests passed !\n\n\033[0m")

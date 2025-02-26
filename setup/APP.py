@@ -19,11 +19,11 @@ tree_depth = 24
 max_leaves = 16_777_216
 
 deposit_opcode_budget_opup = 27_300
-withdrawal_opcode_budget_opup = 28_000
+withdrawal_opcode_budget_opup = 30_100
 
 # How many last roots to store so that concurrent verifiers can check their
 # proof without having their root overwritten by other transactions
-roots_count = 100
+roots_count = 50
 
 # The variable in  global storage are:
 # manager               -> address of the manager for the limited admin functions
