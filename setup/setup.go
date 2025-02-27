@@ -84,8 +84,7 @@ func CreateApp(network deployed.Network) {
 
 	updateConstantsInSmartContracts()
 
-	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress,
-		avm.GetAppManagerAddress())
+	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
 
 	appId := deployMainContract(avm.GetAppManagerAddress())
 	tssBytecode := setupTSS(appId)
@@ -154,7 +153,6 @@ func generateVerifier(curve ecc.ID, c *CircuitData) types.Address {
 func compileMainContract(
 	depositVerifierAddress types.Address,
 	withdrawalVerifierAddress types.Address,
-	managerAddress types.Address,
 ) {
 	approvalTealPath := filepath.Join(ArtefactsDirPath, MainContractName+".approval.teal")
 	approvalSources := []string{MainContractSourcePath, DeppositVerifierTealPath,
@@ -306,7 +304,6 @@ func initMainContract(appId uint64, tssAddress string) {
 		Signer:          transaction.BasicAccountTransactionSigner{Account: *signerAccount},
 		BoxReferences: []types.AppBoxReference{
 			{AppID: appId, Name: []byte("roots")},
-			{AppID: appId, Name: []byte("roots")},
 			{AppID: appId, Name: []byte("subtree")},
 			{AppID: appId, Name: []byte("subtree")},
 		},
@@ -422,18 +419,18 @@ func UpdateApp(network deployed.Network) {
 
 	// alert the user if the TSS bytecode has changed
 	tssBytecode := setupTSS(app.Id)
+	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
 	oldTSSBytecode, err := os.ReadFile(TssBytecodePath)
 	if err != nil {
 		log.Fatalf("Error reading TSS bytecode: %v", err)
 	}
 	if !bytes.Equal(oldTSSBytecode, tssBytecode) {
-		log.Printf("New TSS bytecode differs from the one on file")
+		log.Printf("New TSS bytecode differs from the one on file, updating TSS\n")
 	}
 
-	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress,
-		avm.GetAppManagerAddress())
-
+	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
 	updateMainContract(app.Id)
+	updateTSS(app.Id, tssAddress)
 
 	exportSetupFiles(network)
 	log.Println("Exported frontend setup files to", network.DirPath())
@@ -450,4 +447,51 @@ func updateMainContract(appId uint64) {
 		log.Fatalf("Error updating main contract: %v", err)
 	}
 	log.Printf("Main contract at id %d updated at block %d\n", appId, updateBlock)
+}
+
+func updateTSS(appId uint64, tssAddress string) {
+	algodClient := avm.GetAlgodClient()
+	signerAccount := avm.GetDefaultAccount()
+
+	schema, err := avm.ReadArc32Schema(AppSchemaPath)
+	if err != nil {
+		log.Fatalf("Error reading main contract schema: %v", err)
+	}
+	method, err := schema.Contract.GetMethodByName("set_TSS")
+	if err != nil {
+		log.Fatalf("failed to get method set_TSS: %v", err)
+	}
+	tssAddressBytes, err := types.DecodeAddress(tssAddress)
+	if err != nil {
+		log.Fatalf("Error decoding TSS address: %v", err)
+	}
+
+	sp, err := algodClient.SuggestedParams().Do(context.Background())
+	if err != nil {
+		log.Fatalf("failed to get suggested params: %v", err)
+	}
+	waitRounds := uint64(8)
+	sp.LastRoundValid = sp.FirstRoundValid + types.Round(waitRounds)
+	var atc = transaction.AtomicTransactionComposer{}
+
+	txnParams := transaction.AddMethodCallParams{
+		AppID:           appId,
+		Method:          method,
+		MethodArgs:      []interface{}{tssAddressBytes[:]},
+		Sender:          avm.GetAppManagerAddress(),
+		SuggestedParams: sp,
+		OnComplete:      types.NoOpOC,
+		Signer:          transaction.BasicAccountTransactionSigner{Account: *signerAccount},
+	}
+
+	if err := atc.AddMethodCall(txnParams); err != nil {
+		log.Fatalf("failed to add method call: %v", err)
+	}
+	res, err := atc.Execute(algodClient, context.Background(), waitRounds)
+	if err != nil {
+		log.Println("Res: ", res)
+		log.Fatalf("Error setting TSS for main contract: %v", err)
+	}
+
+	log.Printf("TSS set for main contract at transaction %s\n", res.TxIDs[0])
 }

@@ -1,8 +1,10 @@
 import typing
 
 import algopy as py
-from algopy import Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op, subroutine, urange
-from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
+from algopy import (Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op,
+                    subroutine, urange)
+from algopy.arc4 import (Address, Bool, Byte, DynamicArray, StaticArray,
+                         abimethod)
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
@@ -30,7 +32,7 @@ roots_count = 50
 # immutable             -> initially false, a flag to make the contract immutable
 # initialized           -> initially false, will be set to true after initialization
 # TSS                   -> treasury smart signature address
-# leaf_count            -> number of leaves inserted in the tree
+# inserted_leaves_count -> number of leaves inserted in the tree
 # root                  -> current root hash
 # next_root_index       -> index of the next root to add, between 0,roots_count
 #
@@ -55,7 +57,7 @@ class APP(py.ARC4Contract, avm_version=11):
         # since we need the main contract application id to create the TSS
         self.TSS = Global.zero_address
 
-        self.leaf_count = UInt64(0)
+        self.inserted_leaves_count = UInt64(0)
         self.root = Bytes32.from_bytes(b'')
         self.next_root_index = UInt64(0)
 
@@ -71,6 +73,14 @@ class APP(py.ARC4Contract, avm_version=11):
         self.update_tree_with(Bytes32.from_bytes(b''))
         self.TSS = tss
         self.initialized = True
+
+    @abimethod
+    def set_TSS(self, tss: Account) -> None:
+        """Set the treasury smart signature address, if the application is still
+           mutable (manager only)"""
+        assert not self.immutable
+        assert Txn.sender == self.manager
+        self.TSS = tss
 
     @abimethod(allow_actions=["UpdateApplication", "DeleteApplication"])
     def update(self) -> None:
@@ -134,7 +144,7 @@ class APP(py.ARC4Contract, avm_version=11):
         # Save the commitment in the tree
         self.update_tree_with(commitment)
 
-        return (self.leaf_count - 1, self.root.copy())
+        return (self.inserted_leaves_count - 1, self.root.copy())
 
     @abimethod
     def withdraw(
@@ -227,12 +237,12 @@ class APP(py.ARC4Contract, avm_version=11):
             assert self.tree_not_full(), "Tree is full"
             self.update_tree_with(commitment)
 
-        return (self.leaf_count - 1, self.root.copy())
+        return (self.inserted_leaves_count - 1, self.root.copy())
 
     @subroutine
     def tree_not_full(self) -> bool:
         """Check if the tree is full"""
-        return self.leaf_count < UInt64(max_leaves)
+        return self.inserted_leaves_count < UInt64(max_leaves)
 
     @subroutine
     def add_root(self, root: Bytes32) -> None:
@@ -282,7 +292,7 @@ class APP(py.ARC4Contract, avm_version=11):
             return
 
         subtree, exist = op.Box.get(b'subtree')
-        index = self.leaf_count
+        index = self.inserted_leaves_count
         currentHash = leafHash.bytes
         for i in urange(tree_depth):
             if index & 1 == 0:
@@ -298,7 +308,7 @@ class APP(py.ARC4Contract, avm_version=11):
 
         op.Box.replace(b'subtree', 0, subtree)
         self.add_root(Bytes32.from_bytes(currentHash))
-        self.leaf_count += 1
+        self.inserted_leaves_count += 1
 
 
 @subroutine
