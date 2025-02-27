@@ -2,9 +2,11 @@
 package setup
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -56,10 +58,10 @@ type APP struct {
 	CreationBlock uint64 `json:"creationBlock"`
 }
 
-// Setup generates and deploys all smart contracts to the AVM network and generates in
+// CreateApp generates and deploys all smart contracts to the AVM network and generates in
 // `ArtefactsDirPath` all files needed to build frontends.
 // Uses the the configuration in config/config.go
-func SetupApp(network deployed.Network) {
+func CreateApp(network deployed.Network) {
 	avm.Initialize(network)
 
 	// check app is not already deployed by checking if the deployed dir is empty
@@ -75,22 +77,17 @@ func SetupApp(network deployed.Network) {
 		}
 	}
 
-	jsonData, err := json.MarshalIndent(config.Tree, "", "    ")
-	if err != nil {
-		log.Fatal("Error marshalling TreeConfig: ", err)
-	}
-	err = os.WriteFile(TreeConfigPath, jsonData, 0644)
-	if err != nil {
-		log.Fatal("Error writing TreeConfig: ", err)
-	}
+	writeTreeConfig()
 
 	depositVerifierAdress := generateVerifier(config.Curve, &DepositCircuitData)
 	withdrawalVerifierAddress := generateVerifier(config.Curve, &WithdrawalCircuitData)
 
 	updateConstantsInSmartContracts()
 
-	appId := deployMainContract(depositVerifierAdress, withdrawalVerifierAddress,
+	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress,
 		avm.GetAppManagerAddress())
+
+	appId := deployMainContract(avm.GetAppManagerAddress())
 	tssBytecode := setupTSS(appId)
 	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
 
@@ -152,14 +149,13 @@ func generateVerifier(curve ecc.ID, c *CircuitData) types.Address {
 	return lsigAddress
 }
 
-// deployMainContract deploys the main contract to the network and returns the app id
-// Writes the app id and creation block no. to the json file specified by setup.AppFileanme
-func deployMainContract(
+// compileMainContract compiles the main contract with the given verifier addresses
+// It will write to file the compiled programs in `ArtefactsDirPath`
+func compileMainContract(
 	depositVerifierAddress types.Address,
 	withdrawalVerifierAddress types.Address,
 	managerAddress types.Address,
-) (appId uint64) {
-
+) {
 	approvalTealPath := filepath.Join(ArtefactsDirPath, MainContractName+".approval.teal")
 	approvalSources := []string{MainContractSourcePath, DeppositVerifierTealPath,
 		WithdrawalVerifierTealPath}
@@ -187,12 +183,17 @@ func deployMainContract(
 			}
 		}
 	}
+}
+
+// deployMainContract deploys the main contract to the network and returns the app id
+// Writes the app id and creation block no. to the json file specified by setup.AppFileanme
+func deployMainContract(managerAddress types.Address) (appId uint64) {
 
 	var err error
 	deployedBlock := uint64(0)
 
-	appId, deployedBlock, err = avm.CreateApp(MainContractName, config.CreateMethodName,
-		[]interface{}{managerAddress}, ArtefactsDirPath)
+	appId, deployedBlock, err = avm.CreateOrUpdateApp(MainContractName,
+		config.CreateMethodName, []interface{}{managerAddress}, 0, ArtefactsDirPath)
 	if err != nil {
 		log.Fatalf("Error deploying main contract: %v", err)
 	}
@@ -322,6 +323,18 @@ func initMainContract(appId uint64, tssAddress string) {
 	log.Printf("Main contract initialized at transaction %s\n", res.TxIDs[2])
 }
 
+// writeTreeConfig writes the tree configuration to the TreeConfigPath
+func writeTreeConfig() {
+	jsonData, err := json.MarshalIndent(config.Tree, "", "    ")
+	if err != nil {
+		log.Fatal("Error marshalling TreeConfig: ", err)
+	}
+	err = os.WriteFile(TreeConfigPath, jsonData, 0644)
+	if err != nil {
+		log.Fatal("Error writing TreeConfig: ", err)
+	}
+}
+
 // updateConstantsInSmartContracts updates the constants in the smart contracts files
 func updateConstantsInSmartContracts() {
 	changesMainContract := [][2]string{
@@ -389,4 +402,52 @@ func DeleteApp(network deployed.Network) {
 			log.Printf("Error deleting file %s: %v", file.Name(), err)
 		}
 	}
+}
+
+// UpdateApp updates the app on the network.
+// Note that elements in global state (e.g., the TSS address) can only be updated by adding
+// a method to the contract that allows to update them.
+func UpdateApp(network deployed.Network) {
+	avm.Initialize(network)
+	writeTreeConfig()
+	depositVerifierAdress := generateVerifier(config.Curve, &DepositCircuitData)
+	withdrawalVerifierAddress := generateVerifier(config.Curve, &WithdrawalCircuitData)
+
+	updateConstantsInSmartContracts()
+
+	app := APP{}
+	path := filepath.Join(network.DirPath(), AppFilename)
+	DecodeJSONFile(path, &app)
+	fmt.Println("Updating app with id", app.Id)
+
+	// alert the user if the TSS bytecode has changed
+	tssBytecode := setupTSS(app.Id)
+	oldTSSBytecode, err := os.ReadFile(TssBytecodePath)
+	if err != nil {
+		log.Fatalf("Error reading TSS bytecode: %v", err)
+	}
+	if !bytes.Equal(oldTSSBytecode, tssBytecode) {
+		log.Printf("New TSS bytecode differs from the one on file")
+	}
+
+	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress,
+		avm.GetAppManagerAddress())
+
+	updateMainContract(app.Id)
+
+	exportSetupFiles(network)
+	log.Println("Exported frontend setup files to", network.DirPath())
+}
+
+func updateMainContract(appId uint64) {
+
+	var err error
+	updateBlock := uint64(0)
+
+	appId, updateBlock, err = avm.CreateOrUpdateApp(MainContractName,
+		config.UpdateMethodName, []interface{}{}, appId, ArtefactsDirPath)
+	if err != nil {
+		log.Fatalf("Error updating main contract: %v", err)
+	}
+	log.Printf("Main contract at id %d updated at block %d\n", appId, updateBlock)
 }

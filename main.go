@@ -20,9 +20,9 @@ func main() {
 	command := os.Args[1]
 	networkName := os.Args[2]
 
-	if command != "setup" && command != "delete" {
+	if command != "create" && command != "delete" && command != "update" {
 		fmt.Printf("Invalid command: %s\n", command)
-		fmt.Println("Valid commands are: setup, delete")
+		fmt.Println("Valid commands are: create, delete, update")
 		os.Exit(1)
 	}
 
@@ -46,17 +46,21 @@ func main() {
 	defer logFile.Close()
 
 	switch command {
-	case "setup":
-		setup.SetupApp(network)
+	case "create":
+		setup.CreateApp(network)
 	case "delete":
 		setup.DeleteApp(network)
+	case "update":
+		fmt.Println("Remeber that we expect the manager address to either be the creator " +
+			"address or to be rekeyed to it to run this command")
+		setup.UpdateApp(network)
 	}
 }
 
 // helpString returns the help string for the command line interface
 func helpString() string {
 	help := "Usage: <command> <networkName>\n"
-	help += "Commands: setup, delete\n"
+	help += "Commands: create, delete, update\n"
 	help += "Networks: mainnet, testnet, devnet\n"
 	return help
 }

@@ -117,11 +117,15 @@ func ReadArc32Schema(filepath string) (
 	return schema, nil
 }
 
-// CreateApp creates an arc4 app. It takes an appName and sourceDir to find the teal
-// and schema files listed below, and the createMethodName and args to create the app.
+// CreateOrUpdateApp creates or updates an arc4 app. It takes an appName and sourceDir to find
+// the teal and schema files listed below, the methodName to call, the args for the method,
+// and the appId if updating or zero if creating.
+// We expect the manager address to be the same as the creator address or to be rekeyed to it
+// for updating.
 // SourceDir must contain <appName> + .approval.teal, .clear.teal , .arc32.json
-func CreateApp(appName string, createMethodName string, args []interface{}, sourceDir string,
-) (appId uint64, deployedBlock uint64, err error) {
+func CreateOrUpdateApp(appName string, methodName string, args []interface{}, appId uint64,
+	sourceDir string,
+) (newAppId uint64, confirmedBlock uint64, err error) {
 	algodClient := GetAlgodClient()
 
 	approvalBin, err := CompileTealFromFile(filepath.Join(sourceDir, appName+".approval.teal"))
@@ -145,7 +149,7 @@ func CreateApp(appName string, createMethodName string, args []interface{}, sour
 	}
 	waitRounds := uint64(8)
 	sp.LastRoundValid = sp.FirstRoundValid + types.Round(waitRounds)
-	createMethod, err := schema.Contract.GetMethodByName(createMethodName)
+	method, err := schema.Contract.GetMethodByName(methodName)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to get create method: %v", err)
 	}
@@ -154,40 +158,63 @@ func CreateApp(appName string, createMethodName string, args []interface{}, sour
 		return 0, 0, fmt.Errorf("approval program too large even for extra pages: "+
 			"%d bytes", len(approvalBin))
 	}
+
+	var onComplete types.OnCompletion
+	var sender types.Address
+	if appId == 0 {
+		onComplete = types.NoOpOC
+		sender = creator.Address
+	} else {
+		onComplete = types.UpdateApplicationOC
+		sender = GetAppManagerAddress()
+	}
+
 	var atc transaction.AtomicTransactionComposer
 
 	txnParams := transaction.AddMethodCallParams{
-		Method:          createMethod,
+		AppID:           appId,
+		Method:          method,
 		MethodArgs:      args,
-		Sender:          creator.Address,
+		Sender:          sender,
 		SuggestedParams: sp,
-		OnComplete:      types.NoOpOC,
+		OnComplete:      onComplete,
 		ApprovalProgram: approvalBin,
 		ClearProgram:    clearBin,
-		GlobalSchema: types.StateSchema{
+		Signer:          transaction.BasicAccountTransactionSigner{Account: *creator},
+	}
+	if appId == 0 {
+		txnParams.GlobalSchema = types.StateSchema{
 			NumUint:      schema.State.Global.NumUints,
 			NumByteSlice: schema.State.Global.NumByteSlices,
-		},
-		LocalSchema: types.StateSchema{
+		}
+		txnParams.LocalSchema = types.StateSchema{
 			NumUint:      schema.State.Local.NumUints,
 			NumByteSlice: schema.State.Local.NumByteSlices,
-		},
-		ExtraPages: extraPages,
-		Signer:     transaction.BasicAccountTransactionSigner{Account: *creator},
+		}
+		txnParams.ExtraPages = extraPages
 	}
+
 	if err := atc.AddMethodCall(txnParams); err != nil {
 		log.Fatalf("failed to add method call: %v", err)
 	}
 	res, err := atc.Execute(algodClient, context.Background(), waitRounds)
 	if err != nil {
-		log.Fatalf("Error creating main contract: %v", err)
+		if appId == 0 {
+			log.Fatalf("Error creating main contract: %v", err)
+		} else {
+			log.Fatalf("Error updating main contract: %v", err)
+		}
 	}
-	appId = res.MethodResults[0].TransactionInfo.ApplicationIndex
-	log.Printf("App %s created with id %d at transaction %s\n", appName, appId, res.TxIDs[0])
+	if appId == 0 {
+		appId = res.MethodResults[0].TransactionInfo.ApplicationIndex
+		log.Printf("App %s created with id %d at transaction %s\n", appName, appId,
+			res.TxIDs[0])
+	} else {
+		log.Printf("App %s updated with id %d at transaction %s\n", appName, appId,
+			res.TxIDs[0])
+	}
 
-	deployedBlock = res.ConfirmedRound
-
-	return appId, deployedBlock, nil
+	return appId, res.ConfirmedRound, nil
 }
 
 // DeleteAppFromId deletes an app and returns the transaction id

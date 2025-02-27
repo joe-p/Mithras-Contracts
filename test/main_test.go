@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
-	"github.com/giuliop/HermesVault-smartcontracts/config"
 	"github.com/giuliop/HermesVault-smartcontracts/deployed"
 	"github.com/giuliop/HermesVault-smartcontracts/setup"
 
@@ -15,7 +14,7 @@ import (
 // var nodeDir = filepath.Join(os.Getenv("HOME"), "dev/algorand/devnet/network/data")
 
 func TestMain(t *testing.T) {
-	setup.SetupApp(deployed.DevNet)
+	setup.CreateApp(deployed.DevNet)
 	f := NewAppFrontend()
 
 	account := crypto.GenerateAccount()
@@ -82,8 +81,8 @@ func TestMain(t *testing.T) {
 	fmt.Printf("\033[1m\nAll tests passed !\n\n\033[0m")
 
 	// delete the APP
-	err = avm.DeleteAppFromId(f.App.Id, config.UpdateMethodName, (f.App.Schema))
-	if err != nil {
-		t.Logf("Error deleting app (id %v): %s", f.App.Id, err)
-	}
+	// err = avm.DeleteAppFromId(f.App.Id, config.UpdateMethodName, (f.App.Schema))
+	// if err != nil {
+	// 	t.Logf("Error deleting app (id %v): %s", f.App.Id, err)
+	// }
 }
