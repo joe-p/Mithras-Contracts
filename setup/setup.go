@@ -406,28 +406,29 @@ func DeleteApp(network deployed.Network) {
 // a method to the contract that allows to update them.
 func UpdateApp(network deployed.Network) {
 	avm.Initialize(network)
+
 	writeTreeConfig()
+
 	depositVerifierAdress := generateVerifier(config.Curve, &DepositCircuitData)
 	withdrawalVerifierAddress := generateVerifier(config.Curve, &WithdrawalCircuitData)
 
 	updateConstantsInSmartContracts()
+	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
 
 	app := APP{}
 	path := filepath.Join(network.DirPath(), AppFilename)
 	DecodeJSONFile(path, &app)
 	fmt.Println("Updating app with id", app.Id)
 
-	// alert the user if the TSS bytecode has changed
-	tssBytecode := setupTSS(app.Id)
-	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
-
-	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
 	updateMainContract(app.Id)
 
 	oldTSSBytecode, err := os.ReadFile(TssBytecodePath)
 	if err != nil {
 		log.Fatalf("Error reading TSS bytecode: %v", err)
 	}
+	tssBytecode := setupTSS(app.Id)
+	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
+
 	if !bytes.Equal(oldTSSBytecode, tssBytecode) {
 		log.Printf("New TSS bytecode differs from the one on file, updating TSS\n")
 		updateTSS(app.Id, tssAddress)
@@ -483,10 +484,25 @@ func updateTSS(appId uint64, tssAddress string) {
 	sp.LastRoundValid = sp.FirstRoundValid + types.Round(waitRounds)
 	var atc = transaction.AtomicTransactionComposer{}
 
+	// send a payment to the TSS to cover the minimum balance requirement
+	txn, err := transaction.MakePaymentTxn(
+		signerAccount.Address.String(),
+		tssAddress,
+		5*1_000_000,
+		nil, "", sp)
+	if err != nil {
+		log.Fatalf("failed to make payment txn: %v", err)
+	}
+	txnWithSigner := transaction.TransactionWithSigner{
+		Txn:    txn,
+		Signer: transaction.BasicAccountTransactionSigner{Account: *signerAccount},
+	}
+	atc.AddTransaction(txnWithSigner)
+
 	txnParams := transaction.AddMethodCallParams{
 		AppID:           appId,
 		Method:          method,
-		MethodArgs:      []interface{}{tssAddressBytes[:]},
+		MethodArgs:      []any{tssAddressBytes[:]},
 		Sender:          avm.GetAppManagerAddress(),
 		SuggestedParams: sp,
 		OnComplete:      types.NoOpOC,
@@ -503,4 +519,5 @@ func updateTSS(appId uint64, tssAddress string) {
 	}
 
 	log.Printf("TSS set for main contract at transaction %s\n", res.TxIDs[0])
+
 }
