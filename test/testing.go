@@ -211,7 +211,6 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
 			{AppID: f.App.Id, Name: []byte("subtree")},
 			{AppID: f.App.Id, Name: []byte("subtree")},
 			{AppID: f.App.Id, Name: []byte("roots")},
-			{AppID: f.App.Id, Name: []byte("roots")},
 		},
 	}
 	if err := atc.AddMethodCall(txnParams); err != nil {
@@ -401,7 +400,6 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account,
 		BoxReferences: []types.AppBoxReference{
 			{AppID: f.App.Id, Name: nullifier},
 			{AppID: f.App.Id, Name: []byte("subtree")},
-			{AppID: f.App.Id, Name: []byte("roots")},
 			{AppID: f.App.Id, Name: []byte("roots")},
 		},
 	}
