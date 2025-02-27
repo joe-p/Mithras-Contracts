@@ -420,19 +420,28 @@ func UpdateApp(network deployed.Network) {
 	// alert the user if the TSS bytecode has changed
 	tssBytecode := setupTSS(app.Id)
 	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
+
+	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
+	updateMainContract(app.Id)
+
 	oldTSSBytecode, err := os.ReadFile(TssBytecodePath)
 	if err != nil {
 		log.Fatalf("Error reading TSS bytecode: %v", err)
 	}
 	if !bytes.Equal(oldTSSBytecode, tssBytecode) {
 		log.Printf("New TSS bytecode differs from the one on file, updating TSS\n")
+		updateTSS(app.Id, tssAddress)
 	}
 
-	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
-	updateMainContract(app.Id)
-	updateTSS(app.Id, tssAddress)
-
-	exportSetupFiles(network)
+	filepaths := []string{TreeConfigPath, AppSchemaPath, TssBytecodePath,
+		DepositVerifierBytecodePath, WithdrawalVerifierBytecodePath, TreeConfigPath,
+		DepositCircuitData.CompiledPath, WithdrawalCircuitData.CompiledPath}
+	for _, path := range filepaths {
+		err := copyFile(path, filepath.Join(network.DirPath(), filepath.Base(path)))
+		if err != nil {
+			log.Fatalf("Error copying file %s: %v", path, err)
+		}
+	}
 	log.Println("Exported frontend setup files to", network.DirPath())
 }
 
