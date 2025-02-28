@@ -1,12 +1,7 @@
-* make the zero hashes automatically inserted by code in APP.py
 * revise op-up methodology
-* revise how we deploy the contract by network
+* make the zero hashes automatically inserted by code in APP.py
 * make the arc4 signatures in TSS.py automatically inserted
 
-Notes
-
-AVM max opcode budget: 20,700 * 16 + 256*700 = 331,200 + 179,200 = 510,400
-JJ > It's simpler. A Logicsig can be an app call. So you can get 20,700 * 16 from top-level txns (app calls signed by logicsigs) + 256*700 from inners.
 
 Tests
 * test withdrawing to an algorand address bigger than modulus (will probably need to take the modulus first before adding to public inputs since the verifires expects public inputs to be in the curve field but an Algorand address might represent a number larger than the field modulus)
