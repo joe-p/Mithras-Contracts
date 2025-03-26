@@ -1,10 +1,19 @@
 import typing
 
 import algopy as py
-from algopy import (Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op,
-                    subroutine, urange)
-from algopy.arc4 import (Address, Bool, Byte, DynamicArray, StaticArray,
-                         abimethod)
+from algopy import (
+    Account,
+    Bytes,
+    Global,
+    TemplateVar,
+    Txn,
+    UInt64,
+    itxn,
+    op,
+    subroutine,
+    urange,
+)
+from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
@@ -35,15 +44,24 @@ roots_count = 50
 # inserted_leaves_count -> number of leaves inserted in the tree
 # root                  -> current root hash
 # next_root_index       -> index of the next root to add, between 0,roots_count
-#
+
 # In box storage we have (key -> value):
 # b'roots'              -> 32*roots_count bytes
 # b'subtree'            -> 32*(tree_depth) bytes (see below)
-# <commitment>          -> if exist, commitment was verified and can be inserted
-# <nullifier>           -> if exist, nullifier was spent
-#
+# <32_byte_nullifier>   -> if it exists, nullifier was spent
+
 # In 'subtree' we store a compact representation of the merkle tree: path from
 # last inserted leaf to root (excluded), enough to recompute the root on insertions
+
+# Note that the app needs to be prefunded with MBR for roots and subtree boxes (e.g.,
+# with 24 tree depth and 50 roots, 2500 + 400*(5 + 32*50) = 644,500 microalgo for roots
+# and 2500 + 400 * (7 * 32*24) = 312,500 microalgo for the subtree)
+# The `init` method will create the boxes for the roots and subtree and is meant to be
+# called after the contract is funded.`
+
+# how much the app minimum balance must be increased for each nullifier box in microalgo
+# 2500 + 400 * 32 = 15_300
+nullifier_MBR = 15_300
 
 class APP(py.ARC4Contract, avm_version=11):
     @abimethod(create='require')
@@ -225,10 +243,11 @@ class APP(py.ARC4Contract, avm_version=11):
             fee = 0
         ).submit()
 
-        # Pay the the protocol treasury smart signature (TSS)
+        # Pay the the protocol treasury smart signature (TSS) but keep a portion of the fee
+        # to fund the nullifier box MBR
         itxn.Payment(
             receiver=self.TSS,
-            amount=fee_amount + extra_txn_fee,
+            amount=fee_amount + extra_txn_fee - nullifier_MBR,
             fee=0
         ).submit()
 
