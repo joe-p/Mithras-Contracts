@@ -26,15 +26,18 @@ withdrawal_minimum_fee = 100_000 # 0.1 Algo
 # Depth of the Merkle tree to store the commitments, not counting the root.
 # The leaves are at depth 0 and there are 2**tree_depth leaves.
 # The tree is inizialized with the hash of 0 for all leaves
-tree_depth = 24
-max_leaves = 16_777_216
+tree_depth = 32
+max_leaves = 4_294_967_296
 
-deposit_opcode_budget_opup = 27_300
-withdrawal_opcode_budget_opup = 30_100
+deposit_opcode_budget_opup = 37_100
+withdrawal_opcode_budget_opup = 39_200
 
 # How many last roots to store so that concurrent verifiers can check their
 # proof without having their root overwritten by other transactions
 roots_count = 50
+
+# The initial root of the tree, computed from zero hashes
+initial_root = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7"
 
 # The variable in  global storage are:
 # manager               -> address of the manager for the limited admin functions
@@ -275,39 +278,45 @@ class APP(py.ARC4Contract, avm_version=11):
         """Update the Merkle tree with a new leaf hash."""
         # The initial value for each node at each level of the tree
         # This is based on the mimc_bn254 hash of []byte{0}
-        zero_hashes = StaticArray[Bytes32, typing.Literal[32]].from_bytes(
-            Bytes.from_hex(
-                "2c7298fd87d3039ffea208538f6b297b60b373a63792b4cd0654fdc88fd0d6ee"
-                + "299efaa989f174feff2bbeab19c570216848e2ce4104be7c3fb9fdf8aa9de707"
-                + "26d972fcebd66eb80d0abcf0f8693cd26cf235afe7667ea57c4d5afd024c9253"
-                + "145355664318fec418eebeaf871abae0b6fd9daaafe57c4a996c78d6b6e899fe"
-                + "1e168dd00ae42c342d113730f6d03a9c817e07f9d53f5c667db6019869139b19"
-                + "0721348941259d9749e6158c2e1415f686478c99c302fad4a89013c9bed9383d"
-                + "1e36919cbca2c72a6985ba44cd7f903a3473309833a0db2d9ebc28911d1dc5af"
-                + "1e19f9b309d37cd0e485a51f245d90897455d915565015ec21555a573554fd99"
-                + "163307c51e5f49657d29c4c4182e5e15c5b00c112fc229a309ea228c7cb8f7af"
-                + "1ec84059f46d162c3bb2a26cdb7645683581082f23f04a70822770d927e1d9a9"
-                + "277246058e29ea281b59072bce46aa865f6645bcc2351484e91efd491e968f69"
-                + "25bade792d04a8ad56b011a4a2437bdf4e29115ef91615c98ff7db63f14f9edd"
-                + "12674d23ad24945abff7df5f6e26386588723c7fb868b57805fc30533a3e7e4e"
-                + "28731c90e764d86ba6b303ee880c033072caa89234a00353bb710469b8393723"
-                + "2bd7c9f78f6f2a6ead15292f8746597494de38a942ce3c410bbb810f1bb0b526"
-                + "23043138adbec7b44830018984fcbac393b02307e674580700042931cfac9b6f"
-                + "05f93648dbd103dfaca8b4a45a6122e5eccaa32aeb5a0833700de9a58f8cbf8c"
-                + "2d9918579c9fc07ecb6a07faf51b71b7df9dfb2c40a7fe2a6b4e2694dc7faf2d"
-                + "143f87908ad366917e86cd99282d9c48a436ec41745c94852e74c548fdecb2c9"
-                + "2ec6b723a0d20eda0ba7ba3bf54d16ae5aa8f962727c6653af724fe4f4bc4325"
-                + "11e77fce4a9991c23fd9f0c394c0aa8e75cf1ab9508ef2da9672bbd8ae2eccf7"
-                + "29e5fd751af86d5a3d97688bcb875c1b793fe94d2b037ab459ff4026f381f2ce"
-                + "03e29c0702b8344efb5c544ebfc7e5c45cd1e56dfec46abf0cabe50db26d91f3"
-                + "1e458ea5fa4b33c125acfe8e65e66f1a1b19c3c7c91f6053625066e72e364d4a"
+        zero_hashes = StaticArray[Bytes32, typing.Literal[32]].from_bytes(Bytes.from_hex(
+            "2c7298fd87d3039ffea208538f6b297b60b373a63792b4cd0654fdc88fd0d6ee"
+            + "299efaa989f174feff2bbeab19c570216848e2ce4104be7c3fb9fdf8aa9de707"
+            + "26d972fcebd66eb80d0abcf0f8693cd26cf235afe7667ea57c4d5afd024c9253"
+            + "145355664318fec418eebeaf871abae0b6fd9daaafe57c4a996c78d6b6e899fe"
+            + "1e168dd00ae42c342d113730f6d03a9c817e07f9d53f5c667db6019869139b19"
+            + "0721348941259d9749e6158c2e1415f686478c99c302fad4a89013c9bed9383d"
+            + "1e36919cbca2c72a6985ba44cd7f903a3473309833a0db2d9ebc28911d1dc5af"
+            + "1e19f9b309d37cd0e485a51f245d90897455d915565015ec21555a573554fd99"
+            + "163307c51e5f49657d29c4c4182e5e15c5b00c112fc229a309ea228c7cb8f7af"
+            + "1ec84059f46d162c3bb2a26cdb7645683581082f23f04a70822770d927e1d9a9"
+            + "277246058e29ea281b59072bce46aa865f6645bcc2351484e91efd491e968f69"
+            + "25bade792d04a8ad56b011a4a2437bdf4e29115ef91615c98ff7db63f14f9edd"
+            + "12674d23ad24945abff7df5f6e26386588723c7fb868b57805fc30533a3e7e4e"
+            + "28731c90e764d86ba6b303ee880c033072caa89234a00353bb710469b8393723"
+            + "2bd7c9f78f6f2a6ead15292f8746597494de38a942ce3c410bbb810f1bb0b526"
+            + "23043138adbec7b44830018984fcbac393b02307e674580700042931cfac9b6f"
+            + "05f93648dbd103dfaca8b4a45a6122e5eccaa32aeb5a0833700de9a58f8cbf8c"
+            + "2d9918579c9fc07ecb6a07faf51b71b7df9dfb2c40a7fe2a6b4e2694dc7faf2d"
+            + "143f87908ad366917e86cd99282d9c48a436ec41745c94852e74c548fdecb2c9"
+            + "2ec6b723a0d20eda0ba7ba3bf54d16ae5aa8f962727c6653af724fe4f4bc4325"
+            + "11e77fce4a9991c23fd9f0c394c0aa8e75cf1ab9508ef2da9672bbd8ae2eccf7"
+            + "29e5fd751af86d5a3d97688bcb875c1b793fe94d2b037ab459ff4026f381f2ce"
+            + "03e29c0702b8344efb5c544ebfc7e5c45cd1e56dfec46abf0cabe50db26d91f3"
+            + "1e458ea5fa4b33c125acfe8e65e66f1a1b19c3c7c91f6053625066e72e364d4a"
+            + "058169ffe87b9033238369464bb6aea8ffd76c944dc3ed98ad9f3f2d91357968"
+            + "1deed12ae4b0dbf91581bb5d850cb97090d8f4f07058ca8c2358e432d4aaeb83"
+            + "12dbc9c2ccf91ae64f988a262506ff82c384d7524e9b51082c729a63db5d720c"
+            + "1af142d8178692351cd4c87b035b599d1f229a0dc76c9c4d0b7a8892f82bc623"
+            + "223c1b65a9b5ca5c15049272b0615356e257cd27c1d3bcba1c2bbb51630aeddf"
+            + "18975acea556edc9d0f21fbb083e4925022aea8dcfe87f0e74d90bf719c211fa"
+            + "1668002e9b319ea3a2f0ee2f110cb50a8cdfe50c76b54f3ec8d3de4bd56e5e6c"
+            + "0b2e261a8d90a8ef44279d729d9f1f3a54d9cb066b384cd2ac2d2780da27dcf1"
         ))
 
         # if we are initializing the tree, set subtree to the zero hashes
         if leafHash == Bytes32.from_bytes(b''):
             op.Box.put(b'subtree', zero_hashes.bytes)
-            self.add_root(Bytes32.from_bytes(Bytes.from_hex(
-                "058169ffe87b9033238369464bb6aea8ffd76c944dc3ed98ad9f3f2d91357968")))
+            self.add_root(Bytes32.from_bytes(Bytes.from_hex(initial_root)))
             return
 
         subtree, exist = op.Box.get(b'subtree')

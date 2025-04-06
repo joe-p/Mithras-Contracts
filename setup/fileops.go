@@ -6,12 +6,11 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 )
 
 // changeValueInFile applies changes to filepath, changes are pairs of [lookup, value]
-// The first line in filePath matching `search = ...` will be replaced with `lookup = value`
+// All lines in filePath matching `lookup = ...` will be replaced with `lookup = value`
 func changeValueInFile(filepath string, changes [][2]string) error {
 	content, err := os.ReadFile(filepath)
 	if err != nil {
@@ -23,11 +22,11 @@ func changeValueInFile(filepath string, changes [][2]string) error {
 	for i, line := range lines {
 		trimmed := strings.TrimLeft(line, " \t\n\r")
 		for j, change := range changes {
-			search := change[0]
+			lookup := change[0]
 			replace := change[1]
-			if strings.HasPrefix(trimmed, search+" = ") {
+			if strings.HasPrefix(trimmed, lookup+" = ") {
 				parts := strings.Split(line, " = ")
-				if len(parts) != 2 || parts[0] != search {
+				if len(parts) != 2 || parts[0] != lookup {
 					continue
 				}
 				found[j] = true
@@ -53,20 +52,6 @@ func changeValueInFile(filepath string, changes [][2]string) error {
 		}
 	}
 	return nil
-}
-
-// formatWithUnderscores formats a number with underscores every 3 digits
-func formatWithUnderscores(num int) string {
-	numStr := strconv.Itoa(num)
-	n := len(numStr)
-	var result strings.Builder
-	for i, digit := range numStr {
-		result.WriteByte(byte(digit))
-		if (n-i-1)%3 == 0 && i != n-1 {
-			result.WriteByte('_')
-		}
-	}
-	return result.String()
 }
 
 // replaceInFile replaces in filepath all keys in mapping with their values
@@ -132,5 +117,47 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("failed to copy data: %w", err)
 	}
 
+	return nil
+}
+
+// updateZeroHashesInFile updates the zero hashes in the file at path.
+// It looks for a line starting with "zero_hashes = " and replaces all lines after it
+// until the line starting with ")" (which does not change) with the new hashes.
+func updateZeroHashesInFile(path string, hashes [][]byte) error {
+	newHashes := formatAsStringConcatenation(hashes, 12)
+
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("error reading %s: %v", path, err)
+	}
+
+	var firstLineIndexToChange, lastLineIndexToChange int
+	for i, line := range strings.Split(string(file), "\n") {
+		trimmed := strings.TrimLeft(line, " \t\n\r")
+
+		if strings.HasPrefix(trimmed, "zero_hashes = ") {
+			firstLineIndexToChange = i + 1
+			continue
+		}
+
+		if firstLineIndexToChange > 0 {
+			if strings.HasPrefix(trimmed, ")") {
+				lastLineIndexToChange = i - 1
+				break
+			}
+		}
+	}
+
+	if firstLineIndexToChange > 0 && lastLineIndexToChange > firstLineIndexToChange {
+		lines := strings.Split(string(file), "\n")
+		newLines := append(lines[:firstLineIndexToChange], newHashes)
+		newLines = append(newLines, lines[lastLineIndexToChange+1:]...)
+		err = os.WriteFile(path, []byte(strings.Join(newLines, "\n")), 0644)
+		if err != nil {
+			return fmt.Errorf("error writing %s: %v", path, err)
+		}
+	} else {
+		return fmt.Errorf("zero_hashes not found in file %s", path)
+	}
 	return nil
 }

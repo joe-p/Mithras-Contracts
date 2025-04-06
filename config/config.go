@@ -8,7 +8,7 @@ import (
 
 // setup constants
 const (
-	MerkleTreeLevels    = 24
+	MerkleTreeLevels    = 32
 	Curve               = ecc.BN254
 	RandomNonceByteSize = 31
 
@@ -29,12 +29,12 @@ const (
 	VerifierTopLevelTxnNeeded = 8
 
 	// fees needed for a deposit transaction group
-	DepositMinFeeMultiplier = 42
-	DepositOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 900
+	DepositMinFeeMultiplier = 56
+	DepositOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 1900
 
 	// fees needed for a withdrawal transaction group
-	WithdrawalMinFeeMultiplier = 47
-	WithdrawalOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 3700
+	WithdrawalMinFeeMultiplier = 60
+	WithdrawalOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 4000
 )
 
 type HashFunc = func(...[]byte) []byte

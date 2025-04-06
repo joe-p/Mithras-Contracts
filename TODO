@@ -1,5 +1,4 @@
-* revise op-up methodology
-* make the zero hashes automatically inserted by code in APP.py
+* check MBR increase == 15_300
 * make the arc4 signatures in TSS.py automatically inserted
 
 
