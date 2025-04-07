@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
-	"github.com/giuliop/HermesVault-smartcontracts/config"
 	"github.com/giuliop/HermesVault-smartcontracts/deployed"
 	"github.com/giuliop/HermesVault-smartcontracts/setup"
 
@@ -80,10 +79,4 @@ func TestMain(t *testing.T) {
 
 	// bold success :)
 	fmt.Printf("\033[1m\nAll tests passed !\n\n\033[0m")
-
-	// delete the APP
-	err = avm.DeleteAppFromId(f.App.Id, config.UpdateMethodName, (f.App.Schema))
-	if err != nil {
-		t.Logf("Error deleting app (id %v): %s", f.App.Id, err)
-	}
 }

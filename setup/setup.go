@@ -2,11 +2,9 @@
 package setup
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -190,8 +188,8 @@ func deployMainContract(managerAddress types.Address) (appId uint64) {
 	var err error
 	deployedBlock := uint64(0)
 
-	appId, deployedBlock, err = avm.CreateOrUpdateApp(MainContractName,
-		config.CreateMethodName, []interface{}{managerAddress}, 0, ArtefactsDirPath)
+	appId, deployedBlock, err = avm.CreateApp(MainContractName, config.CreateMethodName,
+		[]interface{}{}, ArtefactsDirPath)
 	if err != nil {
 		log.Fatalf("Error deploying main contract: %v", err)
 	}
@@ -406,125 +404,4 @@ func DeleteApp(network deployed.Network) {
 			log.Printf("Error deleting file %s: %v", file.Name(), err)
 		}
 	}
-}
-
-// UpdateApp updates the app on the network.
-// Note that elements in global state (e.g., the TSS address) can only be updated by adding
-// a method to the contract that allows to update them.
-func UpdateApp(network deployed.Network) {
-	avm.Initialize(network)
-
-	writeTreeConfig()
-
-	depositVerifierAdress := generateVerifier(config.Curve, &DepositCircuitData)
-	withdrawalVerifierAddress := generateVerifier(config.Curve, &WithdrawalCircuitData)
-
-	updateConstantsInSmartContracts()
-	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
-
-	app := APP{}
-	path := filepath.Join(network.DirPath(), AppFilename)
-	DecodeJSONFile(path, &app)
-	fmt.Println("Updating app with id", app.Id)
-
-	updateMainContract(app.Id)
-
-	oldTSSBytecode, err := os.ReadFile(TssBytecodePath)
-	if err != nil {
-		log.Fatalf("Error reading TSS bytecode: %v", err)
-	}
-	tssBytecode := setupTSS(app.Id)
-	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
-
-	if !bytes.Equal(oldTSSBytecode, tssBytecode) {
-		log.Printf("New TSS bytecode differs from the one on file, updating TSS\n")
-		updateTSS(app.Id, tssAddress)
-	}
-
-	filepaths := []string{TreeConfigPath, AppSchemaPath, TssBytecodePath,
-		DepositVerifierBytecodePath, WithdrawalVerifierBytecodePath, TreeConfigPath,
-		DepositCircuitData.CompiledPath, WithdrawalCircuitData.CompiledPath}
-	for _, path := range filepaths {
-		err := copyFile(path, filepath.Join(network.DirPath(), filepath.Base(path)))
-		if err != nil {
-			log.Fatalf("Error copying file %s: %v", path, err)
-		}
-	}
-	log.Println("Exported frontend setup files to", network.DirPath())
-}
-
-func updateMainContract(appId uint64) {
-
-	var err error
-	updateBlock := uint64(0)
-
-	appId, updateBlock, err = avm.CreateOrUpdateApp(MainContractName,
-		config.UpdateMethodName, []interface{}{}, appId, ArtefactsDirPath)
-	if err != nil {
-		log.Fatalf("Error updating main contract: %v", err)
-	}
-	log.Printf("Main contract at id %d updated at block %d\n", appId, updateBlock)
-}
-
-func updateTSS(appId uint64, tssAddress string) {
-	algodClient := avm.GetAlgodClient()
-	signerAccount := avm.GetDefaultAccount()
-
-	schema, err := avm.ReadArc32Schema(AppSchemaPath)
-	if err != nil {
-		log.Fatalf("Error reading main contract schema: %v", err)
-	}
-	method, err := schema.Contract.GetMethodByName("set_TSS")
-	if err != nil {
-		log.Fatalf("failed to get method set_TSS: %v", err)
-	}
-	tssAddressBytes, err := types.DecodeAddress(tssAddress)
-	if err != nil {
-		log.Fatalf("Error decoding TSS address: %v", err)
-	}
-
-	sp, err := algodClient.SuggestedParams().Do(context.Background())
-	if err != nil {
-		log.Fatalf("failed to get suggested params: %v", err)
-	}
-	waitRounds := uint64(8)
-	sp.LastRoundValid = sp.FirstRoundValid + types.Round(waitRounds)
-	var atc = transaction.AtomicTransactionComposer{}
-
-	// send a payment to the TSS to cover the minimum balance requirement
-	txn, err := transaction.MakePaymentTxn(
-		signerAccount.Address.String(),
-		tssAddress,
-		5*1_000_000,
-		nil, "", sp)
-	if err != nil {
-		log.Fatalf("failed to make payment txn: %v", err)
-	}
-	txnWithSigner := transaction.TransactionWithSigner{
-		Txn:    txn,
-		Signer: transaction.BasicAccountTransactionSigner{Account: *signerAccount},
-	}
-	atc.AddTransaction(txnWithSigner)
-
-	txnParams := transaction.AddMethodCallParams{
-		AppID:           appId,
-		Method:          method,
-		MethodArgs:      []any{tssAddressBytes[:]},
-		Sender:          avm.GetAppManagerAddress(),
-		SuggestedParams: sp,
-		OnComplete:      types.NoOpOC,
-		Signer:          transaction.BasicAccountTransactionSigner{Account: *signerAccount},
-	}
-
-	if err := atc.AddMethodCall(txnParams); err != nil {
-		log.Fatalf("failed to add method call: %v", err)
-	}
-	res, err := atc.Execute(algodClient, context.Background(), waitRounds)
-	if err != nil {
-		log.Println("Res: ", res)
-		log.Fatalf("Error setting TSS for main contract: %v", err)
-	}
-
-	log.Printf("TSS set for main contract at transaction %s\n", res.TxIDs[0])
-
 }

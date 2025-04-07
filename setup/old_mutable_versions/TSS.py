@@ -1,26 +1,15 @@
-from algopy import (
-    Bytes,
-    TemplateVar,
-    TransactionType,
-    Txn,
-    UInt64,
-    gtxn,
-    logicsig,
-    op,
-    subroutine,
-)
+from algopy import (Bytes, Global, TemplateVar, TransactionType, Txn, UInt64,
+                    gtxn, logicsig, op, subroutine)
 from algopy.arc4 import arc4_signature
 
 TXN_FEE_ARG_POSITION = 5
 
 @logicsig
 def TSS() -> bool:
-    """
-       The treasury smart signature (TSS) is responsible for signinig and funding withdrawal transactions.
+    """The treasury smart signature (TSS) is responsible for holding the protocol treasury.
        It can sign an app call to withdraw funds from the main contract to a zero-balance address (mode 1).
-
-       It can sign calls to the noop method of the main contract to increase the opcode budget,
-       but will not pay the transaction fee for that (mode 2).
+       It can also be invoked by the protocol manager to manage the treasury (mode 2).
+       Finally, it can sign calls to the noop method of the main contract to increase the opcode budget, but will not pay the transaction fee for that (mode 3).
     """
 
     prevTxn = gtxn.Transaction(Txn.group_index - 1)
@@ -36,7 +25,19 @@ def TSS() -> bool:
         assert currentTxn.fee <= op.btoi(prevTxn.app_args(TXN_FEE_ARG_POSITION)), "fee too high"
         return True
 
-    # mode 2: sign noop transactions to increase the opcode budget
+    # mode 2: manage the treasury
+    # check that:
+    # - previous transaction is a call to the main contract validate_manager method
+    # - current transaction is a payment transaction
+    # - it is not a rekey transaction,
+    # - it is not a close remainder transaction
+    if is_app_call_to(prevTxn, arc4_signature("validate_manager()void")):
+        assert Txn.type_enum == TransactionType.Payment, "wrong transaction type"
+        assert Txn.rekey_to == Global.zero_address, "rekey not allowed"
+        assert Txn.close_remainder_to == Global.zero_address, "close remainder not allowed"
+        return True
+
+    # mode 3: sign noop transactions to increase the opcode budget
     # check that:
     # - current transaction is an app call to the main contract noop method
     # - the fee is zero

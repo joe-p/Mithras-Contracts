@@ -1,8 +1,10 @@
 import typing
 
 import algopy as py
-from algopy import Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op, subroutine, urange
-from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
+from algopy import (Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op,
+                    subroutine, urange)
+from algopy.arc4 import (Address, Bool, Byte, DynamicArray, StaticArray,
+                         abimethod)
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
@@ -27,6 +29,8 @@ WITHDRAWAL_OPCODE_BUDGET_OPUP = 39_200
 
 
 # The variable in  global storage are:
+# manager               -> address of the manager for the limited admin functions
+# immutable             -> initially false, a flag to make the contract immutable
 # initialized           -> initially false, will be set to true after initialization
 # TSS                   -> treasury smart signature address
 # inserted_leaves_count -> number of leaves inserted in the tree
@@ -53,8 +57,10 @@ NULLIFIER_MBR = 15_300
 
 class APP(py.ARC4Contract, avm_version=11):
     @abimethod(create='require')
-    def create(self) -> None:
+    def create(self, manager: Account) -> None:
         """Create the application"""
+        self.manager = manager
+        self.immutable = False
         self.initialized = False
 
         # TSS (treasury smart signature) address will be added after creation
@@ -77,6 +83,31 @@ class APP(py.ARC4Contract, avm_version=11):
         self.update_tree_with(Bytes32.from_bytes(b''))
         self.TSS = tss
         self.initialized = True
+
+    @abimethod
+    def set_TSS(self, tss: Account) -> None:
+        """Set the treasury smart signature address, if the application is still
+           mutable (manager only)"""
+        assert not self.immutable
+        assert Txn.sender == self.manager
+        self.TSS = tss
+
+    @abimethod(allow_actions=["UpdateApplication", "DeleteApplication"])
+    def update(self) -> None:
+        """Update the application if it is mutable (manager only)"""
+        assert Txn.sender == self.manager
+        assert not self.immutable
+
+    @abimethod
+    def set_immutable(self) -> None:
+        """Set the contract as immutable (manager/creator only)"""
+        assert Txn.sender == self.manager or Txn.sender == Global.creator_address
+        self.immutable = True
+
+    @abimethod
+    def validate_manager(self) -> None:
+        """Fail if the sender is not the protocol manager"""
+        assert Txn.sender == self.manager
 
     @abimethod
     def noop(self, counter: UInt64) -> None:

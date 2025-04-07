@@ -117,15 +117,11 @@ func ReadArc32Schema(filepath string) (
 	return schema, nil
 }
 
-// CreateOrUpdateApp creates or updates an arc4 app. It takes an appName and sourceDir to find
-// the teal and schema files listed below, the methodName to call, the args for the method,
-// and the appId if updating or zero if creating.
-// We expect the manager address to be the same as the creator address or to be rekeyed to it
-// for updating.
+// CreateApp creates an arc4 app. It takes an appName and sourceDir to find the teal
+// and schema files listed below, the methodName to call, the args for the method.
 // SourceDir must contain <appName> + .approval.teal, .clear.teal , .arc32.json
-func CreateOrUpdateApp(appName string, methodName string, args []interface{}, appId uint64,
-	sourceDir string,
-) (newAppId uint64, confirmedBlock uint64, err error) {
+func CreateApp(appName string, methodName string, args []any, sourceDir string,
+) (appId uint64, confirmedBlock uint64, err error) {
 	algodClient := GetAlgodClient()
 
 	approvalBin, err := CompileTealFromFile(filepath.Join(sourceDir, appName+".approval.teal"))
@@ -161,18 +157,12 @@ func CreateOrUpdateApp(appName string, methodName string, args []interface{}, ap
 
 	var onComplete types.OnCompletion
 	var sender types.Address
-	if appId == 0 {
-		onComplete = types.NoOpOC
-		sender = creator.Address
-	} else {
-		onComplete = types.UpdateApplicationOC
-		sender = GetAppManagerAddress()
-	}
+	onComplete = types.NoOpOC
+	sender = creator.Address
 
 	var atc transaction.AtomicTransactionComposer
 
 	txnParams := transaction.AddMethodCallParams{
-		AppID:           appId,
 		Method:          method,
 		MethodArgs:      args,
 		Sender:          sender,
@@ -181,17 +171,15 @@ func CreateOrUpdateApp(appName string, methodName string, args []interface{}, ap
 		ApprovalProgram: approvalBin,
 		ClearProgram:    clearBin,
 		Signer:          transaction.BasicAccountTransactionSigner{Account: *creator},
-	}
-	if appId == 0 {
-		txnParams.GlobalSchema = types.StateSchema{
+		GlobalSchema: types.StateSchema{
 			NumUint:      schema.State.Global.NumUints,
 			NumByteSlice: schema.State.Global.NumByteSlices,
-		}
-		txnParams.LocalSchema = types.StateSchema{
+		},
+		LocalSchema: types.StateSchema{
 			NumUint:      schema.State.Local.NumUints,
 			NumByteSlice: schema.State.Local.NumByteSlices,
-		}
-		txnParams.ExtraPages = extraPages
+		},
+		ExtraPages: extraPages,
 	}
 
 	if err := atc.AddMethodCall(txnParams); err != nil {
@@ -199,20 +187,10 @@ func CreateOrUpdateApp(appName string, methodName string, args []interface{}, ap
 	}
 	res, err := atc.Execute(algodClient, context.Background(), waitRounds)
 	if err != nil {
-		if appId == 0 {
-			log.Fatalf("Error creating main contract: %v", err)
-		} else {
-			log.Fatalf("Error updating main contract: %v", err)
-		}
+		log.Fatalf("Error creating main contract: %v", err)
 	}
-	if appId == 0 {
-		appId = res.MethodResults[0].TransactionInfo.ApplicationIndex
-		log.Printf("App %s created with id %d at transaction %s\n", appName, appId,
-			res.TxIDs[0])
-	} else {
-		log.Printf("App %s updated with id %d at transaction %s\n", appName, appId,
-			res.TxIDs[0])
-	}
+	appId = res.MethodResults[0].TransactionInfo.ApplicationIndex
+	log.Printf("App %s created with id %d at transaction %s\n", appName, appId, res.TxIDs[0])
 
 	return appId, res.ConfirmedRound, nil
 }

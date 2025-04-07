@@ -50,18 +50,15 @@ func main() {
 		setup.CreateApp(network)
 	case "delete":
 		setup.DeleteApp(network)
-	case "update":
-		fmt.Println("Remeber that we expect the manager address to either be the creator " +
-			"address or to be rekeyed to it to run this command")
-		setup.UpdateApp(network)
 	}
 }
 
 // helpString returns the help string for the command line interface
 func helpString() string {
 	help := "Usage: <command> <networkName>\n"
-	help += "Commands: create, delete, update\n"
+	help += "Commands: create, delete\n"
 	help += "Networks: mainnet, testnet, devnet\n"
+	help += "\nNote that delete will fail with the default immutable contract\n"
 	return help
 }
 
