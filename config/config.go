@@ -9,18 +9,20 @@ import (
 // setup constants
 const (
 	MerkleTreeLevels    = 32
+	RootsCount          = 50
 	Curve               = ecc.BN254
 	RandomNonceByteSize = 31
 
-	DepositMinimumAmount = 1e6  // 1 algo
-	WithDrawalFeeDivisor = 1000 // 0.1% (we divide by this to get the fee)
-	WithdrawalMinimumFee = 1e5  // 0.1 algo
+	DepositMinimumAmount = 1_000_000 // microalgo, or 1 algo
+	WithdrawalFee        = 100_000   // microalgo, or 0.1 algo
 
 	DepositMethodName    = "deposit"
 	WithDrawalMethodName = "withdraw"
 	NoOpMethodName       = "noop"
 	CreateMethodName     = "create"
 	UpdateMethodName     = "update"
+
+	WithdrawalMethodTxnFeeArgPos = 5
 )
 
 // transaction fees required

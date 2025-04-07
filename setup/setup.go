@@ -335,21 +335,20 @@ func writeTreeConfig() {
 // updateConstantsInSmartContracts updates the constants in the smart contracts files
 func updateConstantsInSmartContracts() {
 	changesMainContract := [][2]string{
-		{"deposit_minimum_amount", formatWithUnderscores(config.DepositMinimumAmount) + " # 1 Algo"},
-		{"withdrawal_fee_divisor", formatWithUnderscores(config.WithDrawalFeeDivisor) +
-			" # 0.1% (we divide by this to get the fee)"},
-		{"withdrawal_minimum_fee", formatWithUnderscores(config.WithdrawalMinimumFee) +
-			" # 0.1 Algo"},
-		{"tree_depth", formatWithUnderscores(config.MerkleTreeLevels)},
-		{"max_leaves", formatWithUnderscores(1 << config.MerkleTreeLevels)},
-		{"deposit_opcode_budget_opup", formatWithUnderscores(config.DepositOpcodeBudgetOpUp)},
-		{"withdrawal_opcode_budget_opup",
-			formatWithUnderscores(config.WithdrawalOpcodeBudgetOpUp)},
-		{"initial_root", "\"" +
+		{"CURVE_MOD", config.Curve.ScalarField().String()},
+		{"DEPOSIT_MINIMUM_AMOUNT", formatWithUnderscores(config.DepositMinimumAmount) + " # 1 Algo"},
+		{"WITHDRAWAL_FEE", formatWithUnderscores(config.WithdrawalFee) + " # 0.1 Algo"},
+		{"TREE_DEPTH", formatWithUnderscores(config.MerkleTreeLevels)},
+		{"MAX_LEAVES", formatWithUnderscores(1 << config.MerkleTreeLevels)},
+		{"ROOTS_COUNT", formatWithUnderscores(config.RootsCount)},
+		{"INITIAL_ROOT", "\"" +
 			hex.EncodeToString(config.Tree.ZeroHashes[config.MerkleTreeLevels]) + "\""},
+		{"DEPOSIT_OPCODE_BUDGET_OPUP", formatWithUnderscores(config.DepositOpcodeBudgetOpUp)},
+		{"WITHDRAWAL_OPCODE_BUDGET_OPUP",
+			formatWithUnderscores(config.WithdrawalOpcodeBudgetOpUp)},
 	}
 	changesTSS := [][2]string{
-		{"withdrawal_min_fee_multiplier", strconv.Itoa(config.WithdrawalMinFeeMultiplier)},
+		{"TXN_FEE_ARG_POSITION", strconv.Itoa(config.WithdrawalMethodTxnFeeArgPos)},
 	}
 	err := changeValueInFile(MainContractSourcePath, changesMainContract)
 	if err != nil {

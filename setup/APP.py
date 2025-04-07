@@ -1,43 +1,32 @@
 import typing
 
 import algopy as py
-from algopy import (
-    Account,
-    Bytes,
-    Global,
-    TemplateVar,
-    Txn,
-    UInt64,
-    itxn,
-    op,
-    subroutine,
-    urange,
-)
-from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
+from algopy import (Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op,
+                    subroutine, urange)
+from algopy.arc4 import (Address, Bool, Byte, DynamicArray, StaticArray,
+                         abimethod)
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
-curve_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+CURVE_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
-deposit_minimum_amount = 1_000_000 # 1 Algo
-withdrawal_fee_divisor = 1_000 # 0.1% (we divide by this to get the fee)
-withdrawal_minimum_fee = 100_000 # 0.1 Algo
+DEPOSIT_MINIMUM_AMOUNT = 1_000_000 # 1 Algo
+WITHDRAWAL_FEE = 100_000 # 0.1 Algo
 
 # Depth of the Merkle tree to store the commitments, not counting the root.
 # The leaves are at depth 0 and there are 2**tree_depth leaves.
 # The tree is inizialized with the hash of 0 for all leaves
-tree_depth = 32
-max_leaves = 4_294_967_296
-
-deposit_opcode_budget_opup = 37_100
-withdrawal_opcode_budget_opup = 39_200
+TREE_DEPTH = 32
+MAX_LEAVES = 4_294_967_296
 
 # How many last roots to store so that concurrent verifiers can check their
 # proof without having their root overwritten by other transactions
-roots_count = 50
+ROOTS_COUNT = 50
+INITIAL_ROOT = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7"
 
-# The initial root of the tree, computed from zero hashes
-initial_root = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7"
+DEPOSIT_OPCODE_BUDGET_OPUP = 37_100
+WITHDRAWAL_OPCODE_BUDGET_OPUP = 39_200
+
 
 # The variable in  global storage are:
 # manager               -> address of the manager for the limited admin functions
@@ -57,14 +46,14 @@ initial_root = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7
 # last inserted leaf to root (excluded), enough to recompute the root on insertions
 
 # Note that the app needs to be prefunded with MBR for roots and subtree boxes (e.g.,
-# with 24 tree depth and 50 roots, 2500 + 400*(5 + 32*50) = 644,500 microalgo for roots
-# and 2500 + 400 * (7 * 32*24) = 312,500 microalgo for the subtree)
+# with 32 tree depth and 50 roots, 2500 + 400 * (5 + 32*50) = 644,500 microalgo for roots
+# and 2500 + 400 * (7 + 32*32) = 414_900 microalgo for the subtree)
 # The `init` method will create the boxes for the roots and subtree and is meant to be
 # called after the contract is funded.`
 
 # how much the app minimum balance must be increased for each nullifier box in microalgo
 # 2500 + 400 * 32 = 15_300
-nullifier_MBR = 15_300
+NULLIFIER_MBR = 15_300
 
 class APP(py.ARC4Contract, avm_version=11):
     @abimethod(create='require')
@@ -89,8 +78,8 @@ class APP(py.ARC4Contract, avm_version=11):
            Once initialized, the contract cannot be re-initialized."""
         assert Txn.sender == Global.creator_address
         assert not self.initialized
-        op.Box.create(b'roots', 32*roots_count)
-        op.Box.create(b'subtree', 32*tree_depth)
+        op.Box.create(b'roots', 32*ROOTS_COUNT)
+        op.Box.create(b'subtree', 32*TREE_DEPTH)
         self.update_tree_with(Bytes32.from_bytes(b''))
         self.TSS = tss
         self.initialized = True
@@ -117,8 +106,7 @@ class APP(py.ARC4Contract, avm_version=11):
 
     @abimethod
     def validate_manager(self) -> None:
-        """Fail if the sender is not the protocol manager.
-           To be used by the TSS to allow manager-only functions"""
+        """Fail if the sender is not the protocol manager"""
         assert Txn.sender == self.manager
 
     @abimethod
@@ -140,7 +128,7 @@ class APP(py.ARC4Contract, avm_version=11):
            zk-proof and public inputs, and be followed by a payment transaction with sender
            matching the `sender` argument
         """
-        py.ensure_budget(deposit_opcode_budget_opup, fee_source=py.OpUpFeeSource.GroupCredit)
+        py.ensure_budget(DEPOSIT_OPCODE_BUDGET_OPUP, fee_source=py.OpUpFeeSource.GroupCredit)
 
         # Extract the amount and commitment from the public inputs
         amount = value_from_Bytes32(public_inputs[0].copy())
@@ -156,7 +144,7 @@ class APP(py.ARC4Contract, avm_version=11):
         pay_txn = py.gtxn.PaymentTransaction(op.Txn.group_index + 1)
         assert pay_txn.receiver == Global.current_application_address, "Wrong receiver"
         assert pay_txn.amount == amount, "Incorrect amount received"
-        assert pay_txn.amount >= deposit_minimum_amount, "Amount is less than minimum deposit"
+        assert pay_txn.amount >= DEPOSIT_MINIMUM_AMOUNT, "Amount is less than minimum deposit"
         assert pay_txn.sender == sender, "Sender is not the expected one"
 
         # Fail if the tree is full, no more deposit accepted
@@ -174,13 +162,13 @@ class APP(py.ARC4Contract, avm_version=11):
         public_inputs: DynamicArray[Bytes32],
             # recipient_mod (address mod curve_mod)
             # withdrawal
-            # fee
+            # protocol fee
             # commitment
             # nullifier
             # root
         recipient: Account,
         no_change: Bool,
-        extra_txn_fee: UInt64
+        txn_fee: UInt64
     ) -> tuple[UInt64, Bytes32]: # return commitment leaf index and tree root
         """Withdraw funds.
 
@@ -192,18 +180,19 @@ class APP(py.ARC4Contract, avm_version=11):
            If used and the user does not withdraw the full amount available, the change
            will be lost.
 
-           The optional argument `extra_txn_fee` is used to indicate that the user
-           wants to pay that as additional transaction fee to the blockchain on top
-           of the minimum fee (e.g., if there is congestion). This amount will
-           be subtracted from the withdrawal amount. This can be useful when
-           calling the TSS (treasury smart signature) to pay the transaction fees.
+           The argument `txn_fee` is used to indicate how much the TSS needs to be funded
+           to pay the transaction fees. Any amount up to `protocol_fee - NULLIFIER_MBR`
+           will be covered by the protocol fee, any additional amount will be held from
+           the withdrawal amount (this can be usefulf if there is network congestion or the TSS
+           is used to fund a larger transaction group composed with other applications).
+           The TSS signs the withdrawal txn and needs to be funded so that can pay the txn fees
         """
-        py.ensure_budget(withdrawal_opcode_budget_opup, fee_source=py.OpUpFeeSource.GroupCredit)
+        py.ensure_budget(WITHDRAWAL_OPCODE_BUDGET_OPUP, fee_source=py.OpUpFeeSource.GroupCredit)
 
         # Extract the public input
         recipient_mod = public_inputs[0].copy()
-        withdrawal = public_inputs[1].copy()
-        fee = public_inputs[2].copy()
+        withdrawal_bytes = public_inputs[1].copy()
+        protocol_fee_bytes = public_inputs[2].copy()
         commitment = public_inputs[3].copy()
         nullifier = public_inputs[4].copy()
         root = public_inputs[5].copy()
@@ -212,7 +201,7 @@ class APP(py.ARC4Contract, avm_version=11):
         assert recipient_mod == Bytes32.from_bytes(
             py.op.bzero(32)
             |
-            (py.BigUInt.from_bytes(recipient.bytes) % curve_mod).bytes
+            (py.BigUInt.from_bytes(recipient.bytes) % CURVE_MOD).bytes
         ), "Recipient address mod does not match"
 
         # Verify the proof was validated by the withdrawal verifier logicsig
@@ -226,31 +215,31 @@ class APP(py.ARC4Contract, avm_version=11):
         # Check the root is valid
         assert valid_root(root), "Invalid root"
 
-        # Check the fee is at least max(0.1 algo, 0.1% of the withdrawal amount)
-        withdrawal_amount = value_from_Bytes32(withdrawal)
-        fee_amount = value_from_Bytes32(fee)
+        # Check the fee is not less the protocol withdrawal fee
+        protocol_fee = value_from_Bytes32(protocol_fee_bytes)
+        assert protocol_fee >= WITHDRAWAL_FEE, "Fee too low"
 
-        min_fee = withdrawal_amount // withdrawal_fee_divisor
-        if min_fee < withdrawal_minimum_fee:
-            min_fee = UInt64(withdrawal_minimum_fee)
+        # Check if the withdrawal_fee net of the MBR can cover the requested transaction fees,
+        # otherwise the amount will be withheld from the withdrawal
+        if txn_fee > (protocol_fee - NULLIFIER_MBR):
+            withhold_amount = txn_fee - (protocol_fee - NULLIFIER_MBR)
+        else:
+            withhold_amount = UInt64(0)
 
-        assert fee_amount >= min_fee, "Fee too low"
-
-        # Check the optional extra transaction fee can be covered
-        assert extra_txn_fee <= withdrawal_amount, "Extra transaction fee cannot be covered"
+        withdrawal = value_from_Bytes32(withdrawal_bytes)
+        assert withhold_amount <= withdrawal, "transaction fee cannot be covered"
 
         # Pay the recipient
         itxn.Payment(
             receiver=recipient,
-            amount=withdrawal_amount - extra_txn_fee,
-            fee = 0
+            amount=withdrawal - withhold_amount,
+            fee=0
         ).submit()
 
-        # Pay the the protocol treasury smart signature (TSS) but keep a portion of the fee
-        # to fund the nullifier box MBR
+        # Transfer the requested transaction fees to the the TSS to pay them
         itxn.Payment(
             receiver=self.TSS,
-            amount=fee_amount + extra_txn_fee - nullifier_MBR,
+            amount=txn_fee,
             fee=0
         ).submit()
 
@@ -264,14 +253,14 @@ class APP(py.ARC4Contract, avm_version=11):
     @subroutine
     def tree_not_full(self) -> bool:
         """Check if the tree is full"""
-        return self.inserted_leaves_count < UInt64(max_leaves)
+        return self.inserted_leaves_count < UInt64(MAX_LEAVES)
 
     @subroutine
     def add_root(self, root: Bytes32) -> None:
         """Add a new root to self and to the list of last roots"""
         self.root = root.copy()
         op.Box.replace(b'roots', self.next_root_index*32, self.root.bytes)
-        self.next_root_index = (self.next_root_index + 1) % roots_count
+        self.next_root_index = (self.next_root_index + 1) % ROOTS_COUNT
 
     @subroutine
     def update_tree_with(self, leafHash: Bytes32) -> None:
@@ -316,13 +305,13 @@ class APP(py.ARC4Contract, avm_version=11):
         # if we are initializing the tree, set subtree to the zero hashes
         if leafHash == Bytes32.from_bytes(b''):
             op.Box.put(b'subtree', zero_hashes.bytes)
-            self.add_root(Bytes32.from_bytes(Bytes.from_hex(initial_root)))
+            self.add_root(Bytes32.from_bytes(Bytes.from_hex(INITIAL_ROOT)))
             return
 
         subtree, exist = op.Box.get(b'subtree')
         index = self.inserted_leaves_count
         currentHash = leafHash.bytes
-        for i in urange(tree_depth):
+        for i in urange(TREE_DEPTH):
             if index & 1 == 0:
                 subtree = op.replace(subtree, i*32, currentHash)
                 left = currentHash
@@ -343,7 +332,7 @@ class APP(py.ARC4Contract, avm_version=11):
 def valid_root(root: Bytes32) -> bool:
     """Check if the root is included in the last saved roots"""
     roots, exist = op.Box.get(b'roots')
-    for i in urange(roots_count):
+    for i in urange(ROOTS_COUNT):
         r = roots[i*32:(i+1)*32]
         if r == root.bytes:
             return True

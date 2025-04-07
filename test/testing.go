@@ -302,18 +302,18 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
 }
 
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
+// If txnFee is 0, the fee will be set to the default withdrawal fee.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-// Add an extraTxnFee if the network is congested and want to speed up
-func (f *Frontend) SendWithdrawal(recipient *crypto.Account,
-	withdrawal uint64, noChange bool, extraTxnFee uint64, fromNote *Note,
+func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, noChange bool,
+	txnFee uint64, fromNote *Note,
 ) (*Withdrawal, error) {
 
-	appFee := withdrawal / config.WithDrawalFeeDivisor
-	if appFee < config.WithdrawalMinimumFee {
-		appFee = config.WithdrawalMinimumFee
+	if txnFee == 0 {
+		txnFee = config.WithdrawalMinFeeMultiplier * transaction.MinTxnFee
 	}
 
+	appFee := uint64(config.WithdrawalFee)
 	change := fromNote.Amount - withdrawal - appFee
 	changeNote := f.NewNote(change)
 	commitment := changeNote.commitment
@@ -371,7 +371,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account,
 	}
 	args = append(args, recipient.Address[:])
 	args = append(args, noChange)
-	args = append(args, extraTxnFee)
+	args = append(args, txnFee)
 
 	algod := avm.GetAlgodClient()
 	sp, err := algod.SuggestedParams().Do(context.Background())
@@ -419,7 +419,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account,
 		return nil, fmt.Errorf("failed to get method %s: %v", NoOpMethod, err)
 	}
 
-	sp.Fee = transaction.MinTxnFee * config.WithdrawalMinFeeMultiplier
+	sp.Fee = types.MicroAlgos(txnFee)
 
 	// the transaction signed by the TSS
 	txnParams = transaction.AddMethodCallParams{

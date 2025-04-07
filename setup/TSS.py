@@ -1,19 +1,8 @@
-from algopy import (
-    Bytes,
-    Global,
-    TemplateVar,
-    TransactionType,
-    Txn,
-    UInt64,
-    gtxn,
-    logicsig,
-    op,
-    subroutine,
-)
+from algopy import (Bytes, Global, TemplateVar, TransactionType, Txn, UInt64,
+                    gtxn, logicsig, op, subroutine)
 from algopy.arc4 import arc4_signature
 
-withdrawal_min_fee_multiplier = 60
-extra_txn_fee_arg_position = 5
+TXN_FEE_ARG_POSITION = 5
 
 @logicsig
 def TSS() -> bool:
@@ -30,14 +19,10 @@ def TSS() -> bool:
     # check that:
     # - previous transaction is a call to the main contract withdraw method
     # - current transaction is an app call to the main contract noop method
-    # - txn fee is not higher than AVM min fee * withdrawal_min_fee_multiplier
-    #   plus any optional extra_txn_fee
+    # - txn fee is not higher than the txn fee requested to the main contract
     if is_app_call_to(prevTxn, arc4_signature("withdraw(byte[32][],byte[32][],account,bool,uint64)(uint64,byte[32])")):
         assert is_app_call_to(currentTxn, arc4_signature("noop(uint64)void")), "wrong method"
-        assert currentTxn.fee <= (
-            withdrawal_min_fee_multiplier * Global.min_txn_fee
-            + op.btoi(prevTxn.app_args(extra_txn_fee_arg_position))
-        ), "fee too high"
+        assert currentTxn.fee <= op.btoi(prevTxn.app_args(TXN_FEE_ARG_POSITION)), "fee too high"
         return True
 
     # mode 2: manage the treasury
