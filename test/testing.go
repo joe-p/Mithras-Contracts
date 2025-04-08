@@ -301,19 +301,39 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
 	return d, nil
 }
 
+type WithdrawalOpts struct {
+	recipient    types.Address
+	feeRecipient types.Address
+	feeSigner    transaction.TransactionSigner
+	amount       uint64
+	fee          uint64
+	noChange     bool
+	fromNote     *Note
+}
+
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
-// If txnFee is 0, the fee will be set to the default withdrawal fee.
+// If fee is 0, the fee will be set to the default withdrawal fee.
+// If feeRecipient is nil, the fee will be sent to the TSS account.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, noChange bool,
-	fee uint64, fromNote *Note,
-) (*Withdrawal, error) {
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
+
+	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
+	withdrawalAmount, fee := opts.amount, opts.fee
+	noChange, fromNote := opts.noChange, opts.fromNote
 
 	if fee == 0 {
 		fee = config.WithdrawalMinFeeMultiplier*transaction.MinTxnFee + config.NullifierMbr
 	}
 
-	change := fromNote.Amount - withdrawal - fee
+	if feeRecipient.IsZero() || feeSigner == nil {
+		feeRecipient = f.App.TSS.Address
+		feeSigner = transaction.LogicSigAccountTransactionSigner{
+			LogicSigAccount: f.App.TSS.Account,
+		}
+	}
+
+	change := fromNote.Amount - withdrawalAmount - fee
 	changeNote := f.NewNote(change)
 	commitment := changeNote.commitment
 
@@ -340,8 +360,8 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 	nullifier := f.MakeNullifier(fromNote)
 
 	assignment := &circuits.WithdrawalCircuit{
-		Recipient:  recipient.Address[:],
-		Withdrawal: withdrawal,
+		Recipient:  recipient[:],
+		Withdrawal: withdrawalAmount,
 		Fee:        fee,
 		Commitment: commitment,
 		Nullifier:  nullifier,
@@ -368,8 +388,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to abi encode proof and public inputs: %v", err)
 	}
-	args = append(args, recipient.Address[:])
-	args = append(args, noChange)
+	args = append(args, recipient[:], feeRecipient[:], noChange)
 
 	algod := avm.GetAlgodClient()
 	sp, err := algod.SuggestedParams().Do(context.Background())
@@ -394,7 +413,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 			LogicSigAccount: f.App.WithdrawalVerifier.Account},
 		Method:          method,
 		MethodArgs:      args,
-		ForeignAccounts: []string{f.App.TSS.Address.String(), recipient.Address.String()},
+		ForeignAccounts: []string{feeRecipient.String(), recipient.String()},
 		BoxReferences: []types.AppBoxReference{
 			{AppID: f.App.Id, Name: nullifier},
 			{AppID: f.App.Id, Name: []byte("subtree")},
@@ -407,10 +426,6 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 		return nil, fmt.Errorf("failed to add %s method call: %v", WithDrawalMethod, err)
 	}
 
-	signerTSS := transaction.LogicSigAccountTransactionSigner{
-		LogicSigAccount: f.App.TSS.Account}
-	senderTSS := f.App.TSS.Address
-
 	noopMethod, err := f.App.Schema.Contract.GetMethodByName(NoOpMethod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get method %s: %v", NoOpMethod, err)
@@ -418,13 +433,13 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 
 	sp.Fee = types.MicroAlgos(fee - config.NullifierMbr)
 
-	// the transaction signed by the TSS
+	// the transaction signed by the feeSigner (e.g., the TSS)
 	txnParams = transaction.AddMethodCallParams{
 		AppID:           f.App.Id,
-		Sender:          senderTSS,
+		Sender:          feeRecipient,
 		SuggestedParams: sp,
 		OnComplete:      types.NoOpOC,
-		Signer:          signerTSS,
+		Signer:          feeSigner,
 		Method:          noopMethod,
 		MethodArgs:      []any{0},
 	}
@@ -439,10 +454,10 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 
 	txnParams = transaction.AddMethodCallParams{
 		AppID:           f.App.Id,
-		Sender:          senderTSS,
+		Sender:          feeRecipient,
 		SuggestedParams: sp,
 		OnComplete:      types.NoOpOC,
-		Signer:          signerTSS,
+		Signer:          feeSigner,
 		Method:          noopMethod,
 	}
 
@@ -476,7 +491,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 	f.Tree.leafHashes = append(f.Tree.leafHashes, changeNote.commitment)
 
 	w := &Withdrawal{
-		ToAddress: recipient.Address.String(),
+		ToAddress: recipient.String(),
 		TxnIds:    res.TxIDs,
 		Note:      changeNote,
 	}

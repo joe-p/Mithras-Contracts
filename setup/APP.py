@@ -1,8 +1,10 @@
 import typing
 
 import algopy as py
-from algopy import Account, Bytes, Global, Txn, UInt64, itxn, op, subroutine, urange
-from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
+from algopy import (Account, Bytes, Global, Txn, UInt64, itxn, op, subroutine,
+                    urange)
+from algopy.arc4 import (Address, Bool, Byte, DynamicArray, StaticArray,
+                         abimethod)
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
@@ -134,6 +136,7 @@ class APP(py.ARC4Contract, avm_version=11):
             # nullifier
             # root
         recipient: Account,
+        fee_recipient: Account,
         no_change: Bool,
     ) -> tuple[UInt64, Bytes32]: # return commitment leaf index and tree root
         """Withdraw funds.
@@ -146,8 +149,8 @@ class APP(py.ARC4Contract, avm_version=11):
            If used and the user does not withdraw the full amount available, the change
            will be lost.
 
-           APP will send `fee - NULLIFIER_MBR` algo to the TSS so that it can pay the
-           transaction fees.
+           APP will send `fee - NULLIFIER_MBR` algo to the `fee_recipient` (e.g., the TSS)
+           so that it can pay the transaction fees.
         """
         py.ensure_budget(WITHDRAWAL_OPCODE_BUDGET_OPUP, fee_source=py.OpUpFeeSource.GroupCredit)
 
@@ -190,10 +193,10 @@ class APP(py.ARC4Contract, avm_version=11):
             fee=0
         ).submit()
 
-        # Transfer any extra fee to the TSS
+        # Transfer any extra fee to fee_recipient (e.g., the TSS)
         if fee > NULLIFIER_MBR:
             itxn.Payment(
-                receiver=self.TSS,
+                receiver=fee_recipient,
                 amount=fee - NULLIFIER_MBR,
                 fee=0
             ).submit()

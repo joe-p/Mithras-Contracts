@@ -25,7 +25,7 @@ def TSS() -> bool:
     # only if the TSS is funded in the same transaction group (i.e., by the main contract's
     # withdraw method inner transaction)
     if is_app_call_to(prevTxn, arc4_signature(
-        "withdraw(byte[32][],byte[32][],account,bool)(uint64,byte[32])")):
+        "withdraw(byte[32][],byte[32][],account,account,bool)(uint64,byte[32])")):
         assert is_app_call_to(currentTxn, arc4_signature("noop(uint64)void")), "wrong method"
         return True
 
