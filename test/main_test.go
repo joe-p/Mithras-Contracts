@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
+	"github.com/giuliop/HermesVault-smartcontracts/config"
 	"github.com/giuliop/HermesVault-smartcontracts/deployed"
 	"github.com/giuliop/HermesVault-smartcontracts/setup"
 
@@ -22,6 +23,12 @@ func TestMain(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("Error funding account: %s", err)
+	}
+
+	// check initial MBR is correct
+	mbr := avm.MBR(f.App.Id)
+	if mbr != config.InitialMbr {
+		t.Fatalf("Initial MBR different than expected %d, got %d", config.InitialMbr, mbr)
 	}
 
 	deposit, err := f.SendDeposit(&account, 10*1e6)
@@ -75,6 +82,12 @@ func TestMain(t *testing.T) {
 			t.Fatalf("Error making withdrawal %d/100: %s", i, err)
 		}
 		note = w.Note
+	}
+
+	// check final MBR is as expected
+	mbr = avm.MBR(f.App.Id)
+	if mbr != config.InitialMbr+102*config.NullifierMbr {
+		t.Fatalf("Final MBR different than expected %d, got %d", config.InitialMbr, mbr)
 	}
 
 	// bold success :)

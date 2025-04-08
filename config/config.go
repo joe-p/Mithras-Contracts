@@ -37,6 +37,14 @@ const (
 	// fees needed for a withdrawal transaction group
 	WithdrawalMinFeeMultiplier = 60
 	WithdrawalOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 4000
+
+	// APP address MBR after initialization: 1_159_400 microalgos
+	InitialMbr = 100_000 + // base
+		2500 + 400*(5+32*RootsCount) + // roots box
+		2500 + 400*(7+32*MerkleTreeLevels) // subtree box
+
+	// MBR for each nullifier box storage: 15_300 microalgos
+	NullifierMbr = 2500 + 400*32
 )
 
 type HashFunc = func(...[]byte) []byte

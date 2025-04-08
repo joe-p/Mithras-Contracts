@@ -274,3 +274,15 @@ func EnsureFunded(address string, min uint64) error {
 	}
 	return nil
 }
+
+// MBR returns the minimum balance required for an app escrow account.
+func MBR(appID uint64) int {
+	algodClient := GetAlgodClient()
+	appAddress := crypto.GetApplicationAddress(appID)
+	accountInfo, err := algodClient.AccountInformation(appAddress.String()).
+		Do(context.Background())
+	if err != nil {
+		log.Fatalf("failed to get account information: %v", err)
+	}
+	return int(accountInfo.MinBalance)
+}

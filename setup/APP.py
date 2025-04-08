@@ -1,7 +1,7 @@
 import typing
 
 import algopy as py
-from algopy import Account, Bytes, Global, TemplateVar, Txn, UInt64, itxn, op, subroutine, urange
+from algopy import Account, Bytes, Global, Txn, UInt64, itxn, op, subroutine, urange
 from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
@@ -25,6 +25,9 @@ INITIAL_ROOT = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7
 DEPOSIT_OPCODE_BUDGET_OPUP = 37_100
 WITHDRAWAL_OPCODE_BUDGET_OPUP = 39_200
 
+# app MBR increase for each nullifier box (microalgo)
+# 2500 + 400 * 32 = 15_300
+NULLIFIER_MBR = 15_300
 
 # The variable in  global storage are:
 # initialized           -> initially false, will be set to true after initialization
@@ -46,10 +49,6 @@ WITHDRAWAL_OPCODE_BUDGET_OPUP = 39_200
 # and 2500 + 400 * (7 + 32*32) = 414_900 microalgo for the subtree)
 # The `init` method will create the boxes for the roots and subtree and is meant to be
 # called after the contract is funded.`
-
-# how much the app minimum balance must be increased for each nullifier box in microalgo
-# 2500 + 400 * 32 = 15_300
-NULLIFIER_MBR = 15_300
 
 class APP(py.ARC4Contract, avm_version=11):
     @abimethod(create='require')
@@ -105,7 +104,7 @@ class APP(py.ARC4Contract, avm_version=11):
 
         # Verify the proof was validated by the deposit verifier logicsig
         # by checking the transaction is signed by the deposit verifier
-        assert Txn.sender == TemplateVar[Account]("DEPOSIT_VERIFIER_ADDRESS"), (
+        assert Txn.sender == py.TemplateVar[Account]("DEPOSIT_VERIFIER_ADDRESS"), (
             "Transaction is not signed by the deposit verifier")
 
         # Check next transaction in the group is a payment of `amount` to the application,
@@ -175,7 +174,7 @@ class APP(py.ARC4Contract, avm_version=11):
 
         # Verify the proof was validated by the withdrawal verifier logicsig
         # by checking the transaction is signed by the withdrawal verifier
-        assert Txn.sender == TemplateVar[py.Account]("WITHDRAWAL_VERIFIER_ADDRESS"), (
+        assert Txn.sender == py.TemplateVar[py.Account]("WITHDRAWAL_VERIFIER_ADDRESS"), (
             "Transaction is not signed by the withdrawal verifier")
 
         # Add the nullifier to the spent nullifiers, or fail if it already exists

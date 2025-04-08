@@ -84,7 +84,7 @@ func CreateApp(network deployed.Network) {
 
 	compileMainContract(depositVerifierAdress, withdrawalVerifierAddress)
 
-	appId := deployMainContract(avm.GetAppManagerAddress())
+	appId := deployMainContract()
 	tssBytecode := setupTSS(appId)
 	tssAddress := crypto.LogicSigAddress(types.LogicSig{Logic: tssBytecode}).String()
 
@@ -183,13 +183,13 @@ func compileMainContract(
 
 // deployMainContract deploys the main contract to the network and returns the app id
 // Writes the app id and creation block no. to the json file specified by setup.AppFileanme
-func deployMainContract(managerAddress types.Address) (appId uint64) {
+func deployMainContract() (appId uint64) {
 
 	var err error
 	deployedBlock := uint64(0)
 
 	appId, deployedBlock, err = avm.CreateApp(MainContractName, config.CreateMethodName,
-		[]interface{}{}, ArtefactsDirPath)
+		[]any{}, ArtefactsDirPath)
 	if err != nil {
 		log.Fatalf("Error deploying main contract: %v", err)
 	}
@@ -276,11 +276,13 @@ func initMainContract(appId uint64, tssAddress string) {
 	sp.LastRoundValid = sp.FirstRoundValid + types.Round(waitRounds)
 	var atc = transaction.AtomicTransactionComposer{}
 
-	for _, recipient := range []string{mainContractAddress, tssAddress} {
+	recipients := []string{mainContractAddress, tssAddress}
+	fundingAmounts := []uint64{config.InitialMbr, 100_000}
+	for i := range 2 {
 		txn, err := transaction.MakePaymentTxn(
 			signerAccount.Address.String(),
-			recipient,
-			5*1_000_000,
+			recipients[i],
+			fundingAmounts[i],
 			nil, "", sp)
 		if err != nil {
 			log.Fatalf("failed to make payment txn: %v", err)
@@ -344,6 +346,7 @@ func updateConstantsInSmartContracts() {
 		{"DEPOSIT_OPCODE_BUDGET_OPUP", formatWithUnderscores(config.DepositOpcodeBudgetOpUp)},
 		{"WITHDRAWAL_OPCODE_BUDGET_OPUP",
 			formatWithUnderscores(config.WithdrawalOpcodeBudgetOpUp)},
+		{"NULLIFIER_MBR", formatWithUnderscores(config.NullifierMbr)},
 	}
 	changesTSS := [][2]string{
 		{"TXN_FEE_ARG_POSITION", strconv.Itoa(config.WithdrawalMethodTxnFeeArgPos)},
