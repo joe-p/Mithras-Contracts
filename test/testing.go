@@ -306,15 +306,14 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
 func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, noChange bool,
-	txnFee uint64, fromNote *Note,
+	fee uint64, fromNote *Note,
 ) (*Withdrawal, error) {
 
-	if txnFee == 0 {
-		txnFee = config.WithdrawalMinFeeMultiplier * transaction.MinTxnFee
+	if fee == 0 {
+		fee = config.WithdrawalMinFeeMultiplier*transaction.MinTxnFee + config.NullifierMbr
 	}
 
-	appFee := uint64(config.WithdrawalFee)
-	change := fromNote.Amount - withdrawal - appFee
+	change := fromNote.Amount - withdrawal - fee
 	changeNote := f.NewNote(change)
 	commitment := changeNote.commitment
 
@@ -343,7 +342,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 	assignment := &circuits.WithdrawalCircuit{
 		Recipient:  recipient.Address[:],
 		Withdrawal: withdrawal,
-		Fee:        appFee,
+		Fee:        fee,
 		Commitment: commitment,
 		Nullifier:  nullifier,
 		Root:       root,
@@ -371,7 +370,6 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 	}
 	args = append(args, recipient.Address[:])
 	args = append(args, noChange)
-	args = append(args, txnFee)
 
 	algod := avm.GetAlgodClient()
 	sp, err := algod.SuggestedParams().Do(context.Background())
@@ -406,8 +404,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 
 	var atc = transaction.AtomicTransactionComposer{}
 	if err := atc.AddMethodCall(txnParams); err != nil {
-		return nil, fmt.Errorf("failed to add %s method call: %v",
-			WithDrawalMethod, err)
+		return nil, fmt.Errorf("failed to add %s method call: %v", WithDrawalMethod, err)
 	}
 
 	signerTSS := transaction.LogicSigAccountTransactionSigner{
@@ -419,7 +416,7 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 		return nil, fmt.Errorf("failed to get method %s: %v", NoOpMethod, err)
 	}
 
-	sp.Fee = types.MicroAlgos(txnFee)
+	sp.Fee = types.MicroAlgos(fee - config.NullifierMbr)
 
 	// the transaction signed by the TSS
 	txnParams = transaction.AddMethodCallParams{
@@ -429,12 +426,11 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 		OnComplete:      types.NoOpOC,
 		Signer:          signerTSS,
 		Method:          noopMethod,
-		MethodArgs:      []interface{}{0},
+		MethodArgs:      []any{0},
 	}
 
 	if err := atc.AddMethodCall(txnParams); err != nil {
-		return nil, fmt.Errorf("failed to add %s method call: %v",
-			NoOpMethod, err)
+		return nil, fmt.Errorf("failed to add %s method call: %v", NoOpMethod, err)
 	}
 
 	// additional transactions to meet the verifier opcode budget
@@ -450,11 +446,10 @@ func (f *Frontend) SendWithdrawal(recipient *crypto.Account, withdrawal uint64, 
 		Method:          noopMethod,
 	}
 
-	for i := 0; i < txnNeeded; i++ {
+	for i := range txnNeeded {
 		txnParams.MethodArgs = []interface{}{i}
 		if err := atc.AddMethodCall(txnParams); err != nil {
-			return nil, fmt.Errorf("failed to add %s method call: %v", NoOpMethod,
-				err)
+			return nil, fmt.Errorf("failed to add %s method call: %v", NoOpMethod, err)
 		}
 	}
 

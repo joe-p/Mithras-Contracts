@@ -337,7 +337,6 @@ func updateConstantsInSmartContracts() {
 	changesMainContract := [][2]string{
 		{"CURVE_MOD", config.Curve.ScalarField().String()},
 		{"DEPOSIT_MINIMUM_AMOUNT", formatWithUnderscores(config.DepositMinimumAmount) + " # 1 Algo"},
-		{"WITHDRAWAL_FEE", formatWithUnderscores(config.WithdrawalFee) + " # 0.1 Algo"},
 		{"TREE_DEPTH", formatWithUnderscores(config.MerkleTreeLevels)},
 		{"MAX_LEAVES", formatWithUnderscores(1 << config.MerkleTreeLevels)},
 		{"ROOTS_COUNT", formatWithUnderscores(config.RootsCount)},
@@ -348,9 +347,6 @@ func updateConstantsInSmartContracts() {
 			formatWithUnderscores(config.WithdrawalOpcodeBudgetOpUp)},
 		{"NULLIFIER_MBR", formatWithUnderscores(config.NullifierMbr)},
 	}
-	changesTSS := [][2]string{
-		{"TXN_FEE_ARG_POSITION", strconv.Itoa(config.WithdrawalMethodTxnFeeArgPos)},
-	}
 	err := changeValueInFile(MainContractSourcePath, changesMainContract)
 	if err != nil {
 		log.Printf("Error updating constants in file %s: %v\n", MainContractSourcePath, err)
@@ -359,10 +355,6 @@ func updateConstantsInSmartContracts() {
 		config.Tree.ZeroHashes[:config.MerkleTreeLevels])
 	if err != nil {
 		log.Printf("Error updating zero hashes in file %s: %v\n", MainContractSourcePath, err)
-	}
-	err = changeValueInFile(TssSourcePath, changesTSS)
-	if err != nil {
-		log.Printf("Error updating constants in file %s: %v\n", TssSourcePath, err)
 	}
 }
 

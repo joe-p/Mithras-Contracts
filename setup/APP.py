@@ -9,7 +9,6 @@ Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 CURVE_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
 DEPOSIT_MINIMUM_AMOUNT = 1_000_000 # 1 Algo
-WITHDRAWAL_FEE = 100_000 # 0.1 Algo
 
 # Depth of the Merkle tree to store the commitments, not counting the root.
 # The leaves are at depth 0 and there are 2**tree_depth leaves.
@@ -130,13 +129,12 @@ class APP(py.ARC4Contract, avm_version=11):
         public_inputs: DynamicArray[Bytes32],
             # recipient_mod (address mod curve_mod)
             # withdrawal
-            # protocol fee
+            # fee
             # commitment
             # nullifier
             # root
         recipient: Account,
         no_change: Bool,
-        txn_fee: UInt64
     ) -> tuple[UInt64, Bytes32]: # return commitment leaf index and tree root
         """Withdraw funds.
 
@@ -148,19 +146,15 @@ class APP(py.ARC4Contract, avm_version=11):
            If used and the user does not withdraw the full amount available, the change
            will be lost.
 
-           The argument `txn_fee` is used to indicate how much the TSS needs to be funded
-           to pay the transaction fees. Any amount up to `protocol_fee - NULLIFIER_MBR`
-           will be covered by the protocol fee, any additional amount will be held from
-           the withdrawal amount (this can be usefulf if there is network congestion or the TSS
-           is used to fund a larger transaction group composed with other applications).
-           The TSS signs the withdrawal txn and needs to be funded so that can pay the txn fees
+           APP will send `fee - NULLIFIER_MBR` algo to the TSS so that it can pay the
+           transaction fees.
         """
         py.ensure_budget(WITHDRAWAL_OPCODE_BUDGET_OPUP, fee_source=py.OpUpFeeSource.GroupCredit)
 
         # Extract the public input
         recipient_mod = public_inputs[0].copy()
         withdrawal_bytes = public_inputs[1].copy()
-        protocol_fee_bytes = public_inputs[2].copy()
+        fee_bytes = public_inputs[2].copy()
         commitment = public_inputs[3].copy()
         nullifier = public_inputs[4].copy()
         root = public_inputs[5].copy()
@@ -183,33 +177,26 @@ class APP(py.ARC4Contract, avm_version=11):
         # Check the root is valid
         assert valid_root(root), "Invalid root"
 
-        # Check the fee is not less the protocol withdrawal fee
-        protocol_fee = value_from_Bytes32(protocol_fee_bytes)
-        assert protocol_fee >= WITHDRAWAL_FEE, "Fee too low"
-
-        # Check if the withdrawal_fee net of the MBR can cover the requested transaction fees,
-        # otherwise the amount will be withheld from the withdrawal
-        if txn_fee > (protocol_fee - NULLIFIER_MBR):
-            withhold_amount = txn_fee - (protocol_fee - NULLIFIER_MBR)
-        else:
-            withhold_amount = UInt64(0)
+        # Check the fee is not less than the MBR for the nullifier box
+        fee = value_from_Bytes32(fee_bytes)
+        assert fee >= NULLIFIER_MBR, "Fee too low"
 
         withdrawal = value_from_Bytes32(withdrawal_bytes)
-        assert withhold_amount <= withdrawal, "transaction fee cannot be covered"
 
-        # Pay the recipient
+        # Send the withdrawal to the recipient
         itxn.Payment(
             receiver=recipient,
-            amount=withdrawal - withhold_amount,
+            amount=withdrawal,
             fee=0
         ).submit()
 
-        # Transfer the requested transaction fees to the the TSS to pay them
-        itxn.Payment(
-            receiver=self.TSS,
-            amount=txn_fee,
-            fee=0
-        ).submit()
+        # Transfer any extra fee to the TSS
+        if fee > NULLIFIER_MBR:
+            itxn.Payment(
+                receiver=self.TSS,
+                amount=fee - NULLIFIER_MBR,
+                fee=0
+            ).submit()
 
         # Save the change commitment, unless no_change is set or the tree is full
         if not no_change.native:

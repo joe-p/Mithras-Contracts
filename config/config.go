@@ -14,7 +14,6 @@ const (
 	RandomNonceByteSize = 31
 
 	DepositMinimumAmount = 1_000_000 // microalgo, or 1 algo
-	WithdrawalFee        = 100_000   // microalgo, or 0.1 algo
 
 	DepositMethodName    = "deposit"
 	WithDrawalMethodName = "withdraw"
@@ -43,8 +42,8 @@ const (
 		2500 + 400*(5+32*RootsCount) + // roots box
 		2500 + 400*(7+32*MerkleTreeLevels) // subtree box
 
-	// MBR for each nullifier box storage: 15_300 microalgos
-	NullifierMbr = 2500 + 400*32
+	// MBR for each nullifier box storage
+	NullifierMbr = 15_300 // 2500 + 400*32
 )
 
 type HashFunc = func(...[]byte) []byte

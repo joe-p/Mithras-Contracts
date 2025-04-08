@@ -10,6 +10,7 @@ import (
 	"github.com/giuliop/HermesVault-smartcontracts/setup"
 
 	"github.com/algorand/go-algorand-sdk/v2/crypto"
+	"github.com/algorand/go-algorand-sdk/v2/transaction"
 )
 
 // var nodeDir = filepath.Join(os.Getenv("HOME"), "dev/algorand/devnet/network/data")
@@ -31,7 +32,8 @@ func TestMain(t *testing.T) {
 		t.Fatalf("Initial MBR different than expected %d, got %d", config.InitialMbr, mbr)
 	}
 
-	deposit, err := f.SendDeposit(&account, 10*1e6)
+	depositAmount := uint64(10 * 1e6)
+	deposit, err := f.SendDeposit(&account, depositAmount)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
 	}
@@ -39,22 +41,22 @@ func TestMain(t *testing.T) {
 		account.Address.String())
 
 	// let's make a withdrawal to a funded account
-	withdrawal, err := f.SendWithdrawal(&account, 5*1e6, false, 0, deposit.Note)
+	firstWithdrawalAmount := uint64(5 * 1e6)
+	withdrawal, err := f.SendWithdrawal(&account, firstWithdrawalAmount, false, 0,
+		deposit.Note)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}
 	fmt.Printf("Withdrawal made at transactions: %v by %s with change of %v\n",
 		withdrawal.TxnIds, account.Address.String(), withdrawal.Note.Amount)
 
-	// now let's make another withdrawal to a zero balance account
-	err = avm.EnsureFunded(f.App.TSS.Address.String(), 101*1e6)
-	if err != nil {
-		t.Fatalf("Error funding account: %s", err)
-	}
-
 	newAccount := crypto.GenerateAccount()
 
-	withdrawal, err = f.SendWithdrawal(&newAccount, 48*1e5, false, 0, withdrawal.Note)
+	// now let's make a withdrawal to a new account, withdrawing everything
+	fee := config.WithdrawalMinFeeMultiplier*transaction.MinTxnFee + config.NullifierMbr
+	availableToWithdraw := depositAmount - firstWithdrawalAmount - uint64(2*fee)
+	withdrawal, err = f.SendWithdrawal(&newAccount, availableToWithdraw, false, 0,
+		withdrawal.Note)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}
