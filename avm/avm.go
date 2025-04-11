@@ -19,9 +19,8 @@ import (
 )
 
 var (
-	algodClient       *algod.Client
-	defaultAccount    *crypto.Account
-	appManagerAddress types.Address
+	algodClient    *algod.Client
+	defaultAccount *crypto.Account
 )
 
 func Initialize(network deployed.Network) {
@@ -40,10 +39,6 @@ func Initialize(network deployed.Network) {
 	if err != nil {
 		log.Fatalf("failed to get default account: %v", err)
 	}
-	appManagerAddress, err = types.DecodeAddress(readAppManagerAddress())
-	if err != nil {
-		log.Fatalf("failed to decode manager address: %v", err)
-	}
 }
 
 func GetAlgodClient() *algod.Client {
@@ -52,10 +47,6 @@ func GetAlgodClient() *algod.Client {
 
 func GetDefaultAccount() (account *crypto.Account) {
 	return defaultAccount
-}
-
-func GetAppManagerAddress() types.Address {
-	return appManagerAddress
 }
 
 // CompileTealFromFile reads a teal file and returns a compiled b64 binary.
