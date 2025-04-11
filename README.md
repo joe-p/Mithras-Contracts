@@ -1,35 +1,17 @@
 # [Hermes Vault](https://github.com/giuliop/HermesVault)
 ## Protocol overview
 
-An address can make deposits of algo tokens in any amount to the application
-contract, keeping a secret receipt. The address and the deposited amount are
-public on the blockchain.
-
-Then, with the secret receipt, any address can withdraw part, or all, of those
-tokens or send them to another address. The receiving address and the withdrawn
-amount will be public, but the source of the withdrawal, that is the original
-deposited amount and the original depositor address, will remain private.
-
-Moreover, the withdrawal transaction will be signed by a smart signature provided
-by the protocol, so the receiving address can be a zero balance account
-(e.g., a new account with no history) since the smart signature will pay the
-transaction fees from the withdrawn amount.
-
-For each withdrawal, the application will create a new deposit with the "change"
-amount (the difference between the original deposit and the withdrawal) to be used
-for future withdrawals with the same privacy guarantees. Even if the change is
-zero, a new "zero" amount deposit will be created to avoid leaking information.
-
+Described [here](https://github.com/giuliop/HermesVault#application-overview).
 
 ## Smart Contracts Implementation
 
-There are two zk-circuits, `deposit_circuit` and `verifier_circuit`, described below.
+There are two zk-circuits, `deposit_circuit` and `withdrawal_circuit`, described below.
 
 The protocol is implemented onchain by the following components:
   - a main smart contract (***APP***) with the application logic
   - a deposit verifier smart signature (***DV***) to validate deposits' zk-proofs
   - a withdrawal verifier smart signature (***WV***) to validate withdrawals' zk-proofs
-  - a treasury smart signature (***TSS***) to sign withdrawal transaction
+  - a treasury smart signature (***TSS***) to optionally sign withdrawal transaction
 
 The deposit and change receipts are stored in a merkle tree managed by ***APP***
 
@@ -52,7 +34,7 @@ The proof proves that
 Commitment = hash(hash(Amount,K,R))
 ```
 
-The user sends a transaction group with two transactions:
+The user sends a transaction group with at least two transactions:
 1. An app call to ***APP***'s deposit method signed by ***DV*** with args `(proof, public inputs, sender)`
 2. A payment of `Amount` tokens to ***APP*** from `sender`
 
@@ -71,7 +53,7 @@ The user generates random `K2`,`R2` and a proof using `withdraw_circuit` with
 Public inputs:  Recipient  -> address for withdrawal
                 Withdrawal -> amount for withdrawal
                 Fee        -> amount for protocol expenses
-                Commitment -> hash(Change, K2, R2)
+                Commitment -> hash(hash(Change, K2, R2))
                 Nullifier  -> hash(Amount, K)
                 Root       -> of merkle tree
 
@@ -98,33 +80,29 @@ Amount,K are the initial part of Path[0] (which is Amount,K,R)
 Path is a valid merkle proof for value (Amount,K,R) at Index with Root
 ```
 
-The user sends a transaction group with two transactions:
-1. An app call to ***APP***'s withdraw method signed by ***WV*** with args (proof, public inputs, recipient, no_change, extra_txn_fee)
-2. An app call to ***APP***'s noop method signed by the ***TSS*** to cover the transaction fees
+The user sends:
+1. An app call to ***APP***'s withdraw method signed by ***WV*** with args (proof, public inputs, recipient, fee_recipient, no_change)
+2. (optionally) an app call to ***APP***'s noop method signed by the ***TSS*** to cover the transaction fees
 
 If the proof is invalid the ***DV*** will reject and the transaction fail
 
 ***APP*** verifies that
 1. `Nullifier` has not been previously spent
 2. `Root` is a valid root
-3. `Fee` is at least 0.1 algo
+3. `Fee` is at least 0.0153 algo (`nullifier_mbr`) to cover nullifier box storage 
 
 If all is verified, ***APP***
 - adds `Nullifier` to the list of used nullifiers
 - sends `Withdrawal` tokens to the `Recipient` minus optional extra network fees
   as described below
-- sends the requested algos to ***TSS*** to cover the transaction fees (as described below)
+- sends `Fee - nullifier_mbr` algos to `fee_recipient` (e.g., the ***TSS***) so that it can cover the transaction fees (as described below)
 - inserts `Change` in the merkle tree
 
 ***TSS*** (if invoked) verifies that
 1. the previous transaction in the group is a call to ***APP***'s withdraw method as per above
 2. the current transaction is an app call to ***APP***'s noop method
-3. the transaction fee is not higher than what was requested to APP
 
-The withdrawal method accepts a parameter `txn_fee` to specify how much algos to transfer to the TSS to cover the transaction fees. It will be covered by the protocol fee unless the amount requested is more than that (net of a small amount to cover MBR increases due to storing the nullifier), in which case the difference will be taken from the withdrawal amount.
-
-After a successful withdrawal, the user is now able to withdraw `Change` in the
-future using the new `Commitment` 
+After a successful withdrawal, the user is now able to withdraw `Change` in the future using the new `Commitment` 
 
 If the tree is full, the user can withdraw but no new change can be inserted.
 So if the user withdraws less than the total amount, the change is locked forever in the contract.
@@ -153,8 +131,8 @@ To avoid a situation where concurrent transactions submit a withdrawal zk-proof 
 
 We need a zk-friendly hash function to hash the merkle tree nodes and the AVM provides [MiMC](https://developer.algorand.org/docs/get-details/dapps/avm/teal/opcodes/v11/#mimc) for that.
 
-### Verifiers
+### ZK-cryptography
+The zk scheme used is plonk. The `DVC` and `WVC` are generated by [AlgoPlonk](https://github.com/giuliop/AlgoPlonk) from the circuits' definitions; AlgoPlonk uses [gnark](https://github.com/Consensys/gnark) for circuit compilation and for proof generation and can be used by frontends for the latter.
 
-The DVC and WVC are generated by [AlgoPlonk](https://github.com/giuliop/AlgoPlonk) from the circuits' definitions; AlgoPlonk uses [gnark](https://github.com/Consensys/gnark) for circuit compilation and for proof generation and can be used by frontends for the latter.
 
 AlgoPlonk offers a [trusted setup](https://github.com/giuliop/AlgoPlonk#trusted-setup) for both curves BN254 and BLS12-381 but only the BN254 setup is large enough to support the withdrawal circuit at the moment, so we use curve BN254.
