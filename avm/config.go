@@ -95,18 +95,6 @@ func readAlgodConfigFromDir(dir string) (*algodConfig, error) {
 	}, nil
 }
 
-// readAppManagerAddress returns the app manager address from the env file of the network
-func readAppManagerAddress() string {
-	if Network == nil {
-		log.Fatalf("avm config not initialized")
-	}
-	// If the network is devnet, use the default account address as manager
-	if *Network == deployed.DevNet {
-		return defaultAccount.Address.String()
-	}
-	return envmap["APP_MANAGER_ADDRESS"]
-}
-
 // readDefaultAccount reads the default account from the env file of the network
 func readDefaultAccount() (*crypto.Account, error) {
 	if Network == nil {
