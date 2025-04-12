@@ -196,10 +196,12 @@ func CreateApp(appName string, methodName string, args []any, sourceDir string,
 }
 
 // DeleteAppFromId deletes an app and returns the transaction id
+// It expects the manager address to be rekeyed to the default account
 func DeleteAppFromId(appId uint64, deleteMethodName string, appSchema *Arc32Schema) error {
 	algodClient := GetAlgodClient()
 
-	creator := GetDefaultAccount()
+	managerAddress := GetAppManagerAddress()
+	defaultAccount := GetDefaultAccount()
 
 	sp, err := algodClient.SuggestedParams().Do(context.Background())
 	if err != nil {
@@ -213,12 +215,12 @@ func DeleteAppFromId(appId uint64, deleteMethodName string, appSchema *Arc32Sche
 	}
 	txn, err := transaction.MakeApplicationDeleteTx(
 		appId, [][]byte{deleteMethod.GetSelector()}, nil, nil, nil, sp,
-		creator.Address, nil, types.Digest{}, [32]byte{}, types.ZeroAddress,
+		managerAddress, nil, types.Digest{}, [32]byte{}, types.ZeroAddress,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to make delete txn: %v", err)
 	}
-	txid, stx, err := crypto.SignTransaction(creator.PrivateKey, txn)
+	txid, stx, err := crypto.SignTransaction(defaultAccount.PrivateKey, txn)
 	if err != nil {
 		return fmt.Errorf("failed to sign transaction: %v", err)
 	}
