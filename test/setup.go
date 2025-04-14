@@ -38,9 +38,9 @@ func readSetup() *App {
 	setup.DecodeJSONFile(pathTo(appFilename), &appJson)
 	setup.DecodeJSONFile(pathTo(appArc32FileName), &app.Schema)
 	app.Id = appJson.Id
-	app.TSS = readlogicsig(tssBytecodeFileName)
-	app.DepositVerifier = readlogicsig(depositVerifierBytecodeFileName)
-	app.WithdrawalVerifier = readlogicsig(withdrawalVerifierBytecodeFileName)
+	app.TSS = readLogicSigFromFile(tssBytecodeFileName)
+	app.DepositVerifier = readLogicSigFromFile(depositVerifierBytecodeFileName)
+	app.WithdrawalVerifier = readLogicSigFromFile(withdrawalVerifierBytecodeFileName)
 	app.TreeConfig = readTreeConfiguration(pathTo(treeConfigFileName))
 
 	var err error
@@ -58,12 +58,17 @@ func readSetup() *App {
 	return &app
 }
 
-// readlogicsig reads the compiled logicsig file and returns an Lsig
-func readlogicsig(compiledFile string) *Lsig {
+// readLogicSigFromFile reads the compiled logicsig file and returns an Lsig
+func readLogicSigFromFile(compiledFile string) *Lsig {
 	bytecode, err := os.ReadFile(pathTo(compiledFile))
 	if err != nil {
 		log.Fatalf("Error reading file: %v", err)
 	}
+	return readLogicSig(bytecode)
+}
+
+// readLogicSig takes teal bytecode and returns a Lsig
+func readLogicSig(bytecode []byte) *Lsig {
 	lsigAccount, err := crypto.MakeLogicSigAccountEscrowChecked(bytecode, nil)
 	if err != nil {
 		log.Fatalf("Error creating  logic sig account: %v", err)

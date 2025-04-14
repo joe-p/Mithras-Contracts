@@ -313,7 +313,8 @@ type WithdrawalOpts struct {
 
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
 // If fee is 0, the fee will be set to the default withdrawal fee.
-// If feeRecipient is nil, the fee will be sent to the TSS account.
+// If feeRecipient or feeSigner are not set, the fee will be sent to the TSS account
+// and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
 func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
