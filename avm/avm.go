@@ -52,16 +52,19 @@ func GetDefaultAccount() (account *crypto.Account) {
 // CompileTealFromFile reads a teal file and returns a compiled b64 binary.
 // A local network must be running
 func CompileTealFromFile(tealFile string) ([]byte, error) {
-	algodClient := GetAlgodClient()
-
 	teal, err := os.ReadFile(tealFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read %s from file: %v", tealFile, err)
 	}
+	return CompileTeal(teal)
+}
 
-	result, err := algodClient.TealCompile(teal).Do(context.Background())
+func CompileTeal(tealBytes []byte) ([]byte, error) {
+	algodClient := GetAlgodClient()
+
+	result, err := algodClient.TealCompile(tealBytes).Do(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to compile %s: %v", tealFile, err)
+		return nil, fmt.Errorf("failed to compile teal: %v", err)
 	}
 	binary, err := base64.StdEncoding.DecodeString(result.Result)
 	if err != nil {
@@ -184,50 +187,6 @@ func CreateApp(appName string, methodName string, args []any, sourceDir string,
 	log.Printf("App %s created with id %d at transaction %s\n", appName, appId, res.TxIDs[0])
 
 	return appId, res.ConfirmedRound, nil
-}
-
-// DeleteAppFromId deletes an app and returns the transaction id
-// It expects the manager address to be rekeyed to the default account
-func DeleteAppFromId(appId uint64, deleteMethodName string, appSchema *Arc32Schema) error {
-	algodClient := GetAlgodClient()
-
-	managerAddress := GetAppManagerAddress()
-	defaultAccount := GetDefaultAccount()
-
-	sp, err := algodClient.SuggestedParams().Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get suggested params: %v", err)
-	}
-	waitRounds := uint64(8)
-	sp.LastRoundValid = sp.FirstRoundValid + types.Round(waitRounds)
-	deleteMethod, err := appSchema.Contract.GetMethodByName("update")
-	if err != nil {
-		return fmt.Errorf("failed to get update method: %v", err)
-	}
-	txn, err := transaction.MakeApplicationDeleteTx(
-		appId, [][]byte{deleteMethod.GetSelector()}, nil, nil, nil, sp,
-		managerAddress, nil, types.Digest{}, [32]byte{}, types.ZeroAddress,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to make delete txn: %v", err)
-	}
-	txid, stx, err := crypto.SignTransaction(defaultAccount.PrivateKey, txn)
-	if err != nil {
-		return fmt.Errorf("failed to sign transaction: %v", err)
-	}
-	_, err = algodClient.SendRawTransaction(stx).Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to send transaction: %v", err)
-	}
-	_, err = transaction.WaitForConfirmation(algodClient, txid, waitRounds,
-		context.Background())
-	if err != nil {
-		return fmt.Errorf("error waiting for confirmation:  %v", err)
-	}
-
-	log.Printf("App %d deleted with transaction %s\n", appId, txid)
-
-	return nil
 }
 
 // EnsureFunded checks if the given address has at least min microalgos and if not,

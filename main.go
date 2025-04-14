@@ -20,9 +20,9 @@ func main() {
 	command := os.Args[1]
 	networkName := os.Args[2]
 
-	if command != "create" && command != "delete" && command != "update" {
+	if command != "create" {
 		fmt.Printf("Invalid command: %s\n", command)
-		fmt.Println("Valid commands are: create, delete, update")
+		fmt.Println("Valid commands are: create")
 		os.Exit(1)
 	}
 
@@ -48,17 +48,14 @@ func main() {
 	switch command {
 	case "create":
 		setup.CreateApp(network)
-	case "delete":
-		setup.DeleteApp(network)
 	}
 }
 
 // helpString returns the help string for the command line interface
 func helpString() string {
 	help := "Usage: <command> <networkName>\n"
-	help += "Commands: create, delete\n"
+	help += "Commands: create\n"
 	help += "Networks: mainnet, testnet, devnet\n"
-	help += "\nNote that delete will fail with the default immutable contract\n"
 	return help
 }
 

@@ -370,33 +370,3 @@ func exportSetupFiles(network deployed.Network) {
 		}
 	}
 }
-
-func DeleteApp(network deployed.Network) {
-	avm.Initialize(network)
-
-	dir := network.DirPath()
-	app := APP{}
-	appPath := filepath.Join(dir, AppFilename)
-	DecodeJSONFile(appPath, &app)
-
-	appSchema := avm.Arc32Schema{}
-	appSchemaPath := filepath.Join(dir, MainContractName+".arc32.json")
-	DecodeJSONFile(appSchemaPath, &appSchema)
-
-	err := avm.DeleteAppFromId(app.Id, config.UpdateMethodName, &appSchema)
-	if err != nil {
-		log.Fatalf("Error deleting app %d: %v\n", app.Id, err)
-	}
-
-	// delete the files in the network folder, but not the network folder itself
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		log.Fatalf("Error reading directory %s: %v", dir, err)
-	}
-	for _, file := range files {
-		err = os.Remove(filepath.Join(dir, file.Name()))
-		if err != nil {
-			log.Printf("Error deleting file %s: %v", file.Name(), err)
-		}
-	}
-}
