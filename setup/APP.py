@@ -1,10 +1,8 @@
 import typing
 
 import algopy as py
-from algopy import (Account, Bytes, Global, Txn, UInt64, itxn, op, subroutine,
-                    urange)
-from algopy.arc4 import (Address, Bool, Byte, DynamicArray, StaticArray,
-                         abimethod)
+from algopy import Account, Bytes, Global, Txn, UInt64, itxn, op, subroutine, urange
+from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimethod
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
@@ -32,7 +30,7 @@ NULLIFIER_MBR = 15_300
 
 # The variable in  global storage are:
 # initialized           -> initially false, will be set to true after initialization
-# TSS                   -> treasury smart signature address
+# TSS                   -> treasury smart signature address for reference
 # inserted_leaves_count -> number of leaves inserted in the tree
 # root                  -> current root hash
 # next_root_index       -> index of the next root to add, between 0,roots_count
@@ -57,8 +55,9 @@ class APP(py.ARC4Contract, avm_version=11):
         """Create the application"""
         self.initialized = False
 
-        # TSS (treasury smart signature) address will be added after creation
-        # since we need the main contract application id to create the TSS
+        # The TSS (treasury smart signature) address will be initialized after
+        # creation as we need the contract application id to create the TSS.
+        # It is stored for reference by frontends, the contract does not use it
         self.TSS = Global.zero_address
 
         self.inserted_leaves_count = UInt64(0)
