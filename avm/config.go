@@ -70,28 +70,42 @@ func readAlgodConfig() *algodConfig {
 	if *Network == deployed.DevNet {
 		return &devnetAlgodConfig
 	}
-	algodConfig, err := readAlgodConfigFromDir(envmap["ALGOD_DIR"])
+	algodConfig, err := readAlgodConfigFromPath(envmap["ALGOD_PATH"])
 	if err != nil {
 		log.Fatalf("failed to read algod config: %v", err)
 	}
 	return algodConfig
 }
 
-// readAlgodConfigFromDir reads the algod URL and token from the given directory
-func readAlgodConfigFromDir(dir string) (*algodConfig, error) {
-	urlPath := filepath.Join(dir, "algod.net")
-	url, err := os.ReadFile(urlPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read algod url: %v", err)
-	}
-	tokenPath := filepath.Join(dir, "algod.token")
-	token, err := os.ReadFile(tokenPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read algod token: %v", err)
+// readAlgodConfigFromPath reads the algod URL and token from the given path
+// The path can either by a local path or a remote URL
+func readAlgodConfigFromPath(path string) (*algodConfig, error) {
+	var url, token string
+	if strings.Contains(path, "http") {
+		url = path
+		if envmap["ALGOD_TOKEN"] != "" {
+			token = envmap["ALGOD_TOKEN"]
+		} else {
+			token = ""
+		}
+	} else {
+		urlPath := filepath.Join(path, "algod.net")
+		urlBytes, err := os.ReadFile(urlPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read algod url: %v", err)
+		}
+		url = "http://" + strings.TrimSpace(string(urlBytes))
+
+		tokenPath := filepath.Join(path, "algod.token")
+		tokenBytes, err := os.ReadFile(tokenPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read algod token: %v", err)
+		}
+		token = strings.TrimSpace(string(tokenBytes))
 	}
 	return &algodConfig{
-		URL:   "http://" + strings.TrimSpace(string(url)),
-		Token: strings.TrimSpace(string(token)),
+		URL:   url,
+		Token: token,
 	}, nil
 }
 
