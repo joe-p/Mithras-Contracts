@@ -59,7 +59,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		t.Fatalf("Initial MBR different than expected %d, got %d", config.InitialMbr, mbr)
 	}
 
-	depositAmount := uint64(10 * 1e6)
+	depositAmount := uint64(100 * 1e6)
 	deposit, err := f.SendDeposit(&account, depositAmount)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
@@ -114,7 +114,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		t.Fatalf("Withdrawal should have failed but it didn't")
 	}
 
-	// now we make 1 deposit and `rootsCount` withdrawal to test correct root management
+	// now we make 1 deposit and `rootsCount` * 2 withdrawal to test correct root management
 	deposit, err = f.SendDeposit(&account, 1000*1e6)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
@@ -126,7 +126,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		amount:    0.1 * 1e6,
 		fromNote:  note,
 	}
-	for i := 1; i <= config.RootsCount; i++ {
+	for i := 1; i <= config.RootsCount*2; i++ {
 		w, err := f.SendWithdrawal(withdrawalOpts)
 		if err != nil {
 			t.Fatalf("Error making withdrawal %d/100: %s", i, err)

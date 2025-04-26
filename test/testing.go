@@ -265,9 +265,8 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
 		return nil, fmt.Errorf("failed to simulate transaction: %v", err)
 	}
 	// print the opcode budget used
-	fmt.Printf("Deposit opcode budget used: %d\n",
-		simRes.SimulateResponse.TxnGroups[0].AppBudgetConsumed)
-	fmt.Printf("Deposit opcode budget added: %d\n",
+	fmt.Printf("Deposit opcode budget used | added: %d | %d\n",
+		simRes.SimulateResponse.TxnGroups[0].AppBudgetConsumed,
 		simRes.SimulateResponse.TxnGroups[0].AppBudgetAdded)
 
 	res, err := atc.Execute(algod, context.Background(), 4)
@@ -473,9 +472,8 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to simulate transaction: %v", err)
 	}
-	fmt.Printf("Withdrawal opcode budget used: %d\n",
-		simRes.SimulateResponse.TxnGroups[0].AppBudgetConsumed)
-	fmt.Printf("Withdrawal opcode budget added: %d\n",
+	fmt.Printf("Withdrawal opcode budget used | added: %d | %d\n",
+		simRes.SimulateResponse.TxnGroups[0].AppBudgetConsumed,
 		simRes.SimulateResponse.TxnGroups[0].AppBudgetAdded)
 
 	res, err := atc.Execute(algod, context.Background(), 4)
