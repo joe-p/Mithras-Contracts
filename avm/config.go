@@ -11,9 +11,9 @@ import (
 	"github.com/giuliop/HermesVault-smartcontracts/deployed"
 	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
 
-	"github.com/algorand/go-algorand-sdk/mnemonic"
 	"github.com/algorand/go-algorand-sdk/v2/client/kmd"
 	"github.com/algorand/go-algorand-sdk/v2/crypto"
+	"github.com/algorand/go-algorand-sdk/v2/mnemonic"
 	"golang.org/x/crypto/ed25519"
 )
 

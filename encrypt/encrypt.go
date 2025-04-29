@@ -1,3 +1,6 @@
+// Package encrypt provides simple symmetric, password-based encryption
+// and decryption using NaCl’s SecretBox authenticated cipher.
+// It reads passwords securely from the terminal
 package encrypt
 
 import (
