@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	"log"
 	"math/big"
 
@@ -45,7 +46,9 @@ type Note struct {
 	commitment    []byte
 	k             []byte
 	r             []byte
-	insertedIndex int // -1 if not inserted, leaf index in tree otherwise
+	pubX          []byte // public key x coordinate
+	pubY          []byte // public key y coordinate
+	insertedIndex int    // -1 if not inserted, leaf index in tree otherwise
 }
 
 func (f *Frontend) MakeNullifier(note *Note) []byte {
@@ -54,7 +57,7 @@ func (f *Frontend) MakeNullifier(note *Note) []byte {
 
 func (f *Frontend) MakeLeafValue(n *Note) []byte {
 	ab := uint64ToBytes32(n.Amount)
-	h := f.Tree.hashFunc(ab, n.k, n.r)
+	h := f.Tree.hashFunc(ab, n.k, n.r, n.pubX, n.pubY)
 	return h
 }
 
@@ -102,9 +105,12 @@ func NewAppFrontend() *Frontend {
 	}
 }
 
-func (f *Frontend) MakeCommitment(amount uint64, k, r []byte) []byte {
+func (f *Frontend) MakeCommitment(amount uint64, k, r []byte, pubkey eddsa.PublicKey) []byte {
 	ab := uint64ToBytes32(amount)
-	h := f.Tree.hashFunc(ab, k, r)
+	x := pubkey.A.X.Bytes()
+	y := pubkey.A.Y.Bytes()
+
+	h := f.Tree.hashFunc(ab, k, r, x[:], y[:])
 	h = f.Tree.hashFunc(h)
 	return h
 }
@@ -136,15 +142,21 @@ func NewRandomNonce() []byte {
 	return res
 }
 
-func (f *Frontend) NewNote(amount uint64) *Note {
+func (f *Frontend) NewNote(amount uint64, pubkey eddsa.PublicKey) *Note {
 	k := NewRandomNonce()
 	r := NewRandomNonce()
-	commitment := f.MakeCommitment(amount, k, r)
+	commitment := f.MakeCommitment(amount, k, r, pubkey)
+
+	x := pubkey.A.X.Bytes()
+	y := pubkey.A.Y.Bytes()
+
 	return &Note{
 		Amount:        amount,
 		commitment:    commitment,
 		k:             k,
 		r:             r,
+		pubX:          x[:],
+		pubY:          y[:],
 		insertedIndex: -1,
 	}
 }
@@ -157,16 +169,20 @@ func uint64ToBytes32(amount uint64) []byte {
 }
 
 // SendDeposit creates a deposit transaction and sends it to the network
-func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
+func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, pubkey eddsa.PublicKey) (
 	*Deposit, error) {
 
-	note := f.NewNote(amount)
+	note := f.NewNote(amount, pubkey)
 
+	x := pubkey.A.X.Bytes()
+	y := pubkey.A.Y.Bytes()
 	assignment := &circuits.DepositCircuit{
 		Amount:     amount,
 		Commitment: note.commitment,
 		K:          note.k,
 		R:          note.r,
+		PubX:       x[:],
+		PubY:       y[:],
 	}
 	verifiedProof, err := f.App.DepositCc.Verify(assignment)
 	if err != nil {
@@ -316,7 +332,7 @@ type WithdrawalOpts struct {
 // and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, pubkey eddsa.PublicKey) (*Withdrawal, error) {
 
 	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
 	withdrawalAmount, fee := opts.amount, opts.fee
@@ -334,7 +350,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 	}
 
 	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote := f.NewNote(change)
+	changeNote := f.NewNote(change, pubkey)
 	commitment := changeNote.commitment
 
 	if fromNote.insertedIndex == -1 {
@@ -359,6 +375,8 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 
 	nullifier := f.MakeNullifier(fromNote)
 
+	x := pubkey.A.X.Bytes()
+	y := pubkey.A.Y.Bytes()
 	assignment := &circuits.WithdrawalCircuit{
 		Recipient:  recipient[:],
 		Withdrawal: withdrawalAmount,
@@ -374,6 +392,8 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 		R2:         changeNote.r,
 		Index:      index,
 		Path:       path,
+		PubX:       x[:],
+		PubY:       y[:],
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {

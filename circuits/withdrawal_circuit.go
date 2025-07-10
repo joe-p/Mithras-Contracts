@@ -33,7 +33,17 @@ type WithdrawalCircuit struct {
 	K2         frontend.Variable
 	R2         frontend.Variable
 	Index      frontend.Variable
-	Path       [MerkleTreeLevels + 1]frontend.Variable
+
+	// PubKey is a public key of the withdrawal keypair. This keypair should ONLY be used for signing
+	// withdrawal commitments
+	PubX frontend.Variable
+	PubY frontend.Variable
+
+	// TODO: verify signature
+	// // Signature is the signature of the withdrawal commitment signed by the withdrawal keypair
+	// Signature eddsa.Signature
+
+	Path [MerkleTreeLevels + 1]frontend.Variable
 }
 
 func (c *WithdrawalCircuit) Define(api frontend.API) error {
@@ -46,10 +56,12 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// hash(hash(Change, K2, R2)) == Commitment
+	// hash(hash(Change, K2, R2, PubKey)) == Commitment
 	mimc.Write(c.Change)
 	mimc.Write(c.K2)
 	mimc.Write(c.R2)
+	mimc.Write(c.PubX)
+	mimc.Write(c.PubY)
 	h := mimc.Sum()
 
 	mimc.Reset()
@@ -59,10 +71,27 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// Path[0] == hash(Amount, K, R)
+	// TODO: verify signature
+	//
+	// curve, err := twistededwards.NewEdCurve(api, ecc.BN254)
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// err = eddsa.Verify(curve, c.Signature, c.Commitment, c.PubKey, &mimc)
+	//
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// mimc.Reset()
+
+	// Path[0] == hash(Amount, K, R, Pubkey)
 	mimc.Write(c.Amount)
 	mimc.Write(c.K)
 	mimc.Write(c.R)
+	mimc.Write(c.PubX)
+	mimc.Write(c.PubY)
 	api.AssertIsEqual(c.Path[0], mimc.Sum())
 
 	mimc.Reset()
