@@ -11,6 +11,7 @@ import (
 	"log"
 	"math/big"
 
+	bnt "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
@@ -50,8 +51,8 @@ type Note struct {
 	commitment    []byte
 	k             []byte
 	r             []byte
-	pubX          []byte // public key x coordinate
-	pubY          []byte // public key y coordinate
+	outputX       []byte // public key x coordinate
+	outputY       []byte // public key y coordinate
 	insertedIndex int    // -1 if not inserted, leaf index in tree otherwise
 }
 
@@ -61,7 +62,7 @@ func (f *Frontend) MakeNullifier(note *Note) []byte {
 
 func (f *Frontend) MakeLeafValue(n *Note) []byte {
 	ab := uint64ToBytes32(n.Amount)
-	h := f.Tree.hashFunc(ab, n.k, n.r, n.pubX, n.pubY)
+	h := f.Tree.hashFunc(ab, n.k, n.r, n.outputX, n.outputY)
 	return h
 }
 
@@ -146,21 +147,44 @@ func NewRandomNonce() []byte {
 	return res
 }
 
-func (f *Frontend) NewNote(amount uint64, pubkey eddsa.PublicKey) *Note {
-	k := NewRandomNonce()
-	r := NewRandomNonce()
-	commitment := f.MakeCommitment(amount, k, r, pubkey)
+func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputPubkey eddsa.PublicKey) *Note {
+	// Extract scalar from inputPrivKey.Bytes().
+	const pubSize = 32
+	const sizeFr = 32
+	privBytes := inputPrivKey.Bytes()
+	scalarBytes := privBytes[pubSize : pubSize+sizeFr]
+	scalar := new(big.Int).SetBytes(scalarBytes)
 
-	x := pubkey.A.X.Bytes()
-	y := pubkey.A.Y.Bytes()
+	// Compute shared point: scalar * outputPubkey.A.
+	var sharedPoint bnt.PointAffine
+	sharedPoint.ScalarMultiplication(&outputPubkey.A, scalar)
+
+	xBytes := sharedPoint.X.Bytes()
+	yBytes := sharedPoint.Y.Bytes()
+	sharedSecret := f.Tree.hashFunc(xBytes[:], yBytes[:])
+
+	kDomain := make([]byte, 32)
+	rDomain := make([]byte, 32)
+	kDomain[31] = 'k'
+	rDomain[31] = 'r'
+
+	k := f.Tree.hashFunc(sharedSecret, kDomain)
+	r := f.Tree.hashFunc(sharedSecret, rDomain)
+
+	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
+
+	inputPrivKey.Bytes()
+
+	x := outputPubkey.A.X.Bytes()
+	y := outputPubkey.A.Y.Bytes()
 
 	return &Note{
 		Amount:        amount,
 		commitment:    commitment,
 		k:             k,
 		r:             r,
-		pubX:          x[:],
-		pubY:          y[:],
+		outputX:       x[:],
+		outputY:       y[:],
 		insertedIndex: -1,
 	}
 }
@@ -173,13 +197,13 @@ func uint64ToBytes32(amount uint64) []byte {
 }
 
 // SendDeposit creates a deposit transaction and sends it to the network
-func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, pubkey eddsa.PublicKey) (
+func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey eddsa.PublicKey, inputPrivkey eddsa.PrivateKey) (
 	*Deposit, error) {
 
-	note := f.NewNote(amount, pubkey)
+	note := f.NewNote(amount, inputPrivkey, outputPubkey)
 
-	x := pubkey.A.X.Bytes()
-	y := pubkey.A.Y.Bytes()
+	x := outputPubkey.A.X.Bytes()
+	y := outputPubkey.A.Y.Bytes()
 	assignment := &circuits.DepositCircuit{
 		Amount:     amount,
 		Commitment: note.commitment,
@@ -354,7 +378,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.Priv
 	}
 
 	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote := f.NewNote(change, outputPubkey)
+	changeNote := f.NewNote(change, *inputPrivkey, outputPubkey)
 	commitment := changeNote.commitment
 
 	if fromNote.insertedIndex == -1 {

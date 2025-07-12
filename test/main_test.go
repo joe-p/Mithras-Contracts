@@ -79,7 +79,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 	}
 	testPublicKey := testPrivKey.PublicKey
 
-	deposit, err := f.SendDeposit(&account, depositAmount, testPublicKey)
+	deposit, err := f.SendDeposit(&account, depositAmount, testPublicKey, *testPrivKey)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
 	}
@@ -163,7 +163,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		t.Fatalf("Error generating new key pair: %s", err)
 	}
 
-	deposit, err = f.SendDeposit(&account, 1000*1e6, newKeypair.PublicKey)
+	deposit, err = f.SendDeposit(&account, 1000*1e6, newKeypair.PublicKey, *newKeypair)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
 	}
@@ -215,7 +215,7 @@ func TestWrongLsigVerifier(t *testing.T) {
 	depositAmount := uint64(10 * 1e6)
 	depositLsig := f.App.DepositVerifier
 	f.App.DepositVerifier = dummyLsig
-	_, err = f.SendDeposit(&account, depositAmount, testPublicKey2)
+	_, err = f.SendDeposit(&account, depositAmount, testPublicKey2, *testPrivKey2)
 	if err == nil {
 		t.Fatalf("Ouch, no error making deposit with dummy lsig: %s", err)
 	}
@@ -224,7 +224,7 @@ func TestWrongLsigVerifier(t *testing.T) {
 	f.App.DepositVerifier = depositLsig
 	// let's make a deposit and then try to make a withdrawal with the dummy lsig
 
-	deposit, err := f.SendDeposit(&account, depositAmount, testPublicKey2)
+	deposit, err := f.SendDeposit(&account, depositAmount, testPublicKey2, *testPrivKey2)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
 	}
@@ -262,7 +262,7 @@ func TestWithdrawToAddressBiggerThanMod(t *testing.T) {
 		t.Fatalf("Error funding account: %s", err)
 	}
 	depositAmount := uint64(10 * 1e6)
-	deposit, err := f.SendDeposit(&depositorAccount, depositAmount, testPublicKey3)
+	deposit, err := f.SendDeposit(&depositorAccount, depositAmount, testPublicKey3, *testPrivKey3)
 	if err != nil {
 		t.Fatalf("Error making deposit: %s", err)
 	}
