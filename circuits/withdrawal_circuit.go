@@ -62,7 +62,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// hash(hash(Change, K2, R2, Output)) == Commitment
+	// hash(hash(Change, K2, R2, OutputX, OutputY)) == Commitment
 	mimc.Write(c.Change)
 	mimc.Write(c.K2)
 	mimc.Write(c.R2)
@@ -77,7 +77,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// Verify the signature of the withdrawal commitment
+	// Verify the the Input pubkey signed the withdrawal commitment
 	curve, err := twistededwards.NewEdCurve(api, tedwards.BN254)
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// Path[0] == hash(Amount, K, R, Output)
+	// Path[0] == hash(Amount, K, R, InputX, InputY)
 	mimc.Write(c.Amount)
 	mimc.Write(c.K)
 	mimc.Write(c.R)

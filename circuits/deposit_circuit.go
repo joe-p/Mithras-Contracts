@@ -30,7 +30,7 @@ type DepositCircuit struct {
 func (c *DepositCircuit) Define(api frontend.API) error {
 	mimc, _ := mimc.NewMiMC(api)
 
-	// hash(hash(Amount, K, R, PubKey)) == Commitment
+	// hash(hash(Amount, K, R, OutputX, OutputY)) == Commitment
 	mimc.Write(c.Amount)
 	mimc.Write(c.K)
 	mimc.Write(c.R)
