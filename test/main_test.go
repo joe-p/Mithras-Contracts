@@ -32,17 +32,13 @@ const (
 int 1`
 )
 
-func generateTestKeyPair() (eddsa.PublicKey, error) {
+func generateTestKeyPair() (*eddsa.PrivateKey, error) {
 	privateKey, err := eddsa.GenerateKey(rand.Reader)
 	if err != nil {
-		return eddsa.PublicKey{}, err
+		return &eddsa.PrivateKey{}, err
 	}
-	publicKey := privateKey.Public()
-	concretePublicKey, ok := publicKey.(*eddsa.PublicKey)
-	if !ok {
-		return eddsa.PublicKey{}, fmt.Errorf("error casting public key to *eddsa.PublicKey")
-	}
-	return *concretePublicKey, nil
+
+	return privateKey, nil
 }
 
 func TestMain(m *testing.M) {
@@ -77,10 +73,11 @@ func TestDepositWithdrawMBR(t *testing.T) {
 
 	depositAmount := uint64(100 * 1e6)
 
-	testPublicKey, err := generateTestKeyPair()
+	testPrivKey, err := generateTestKeyPair()
 	if err != nil {
 		t.Fatalf("Error generating test key pair: %s", err)
 	}
+	testPublicKey := testPrivKey.PublicKey
 
 	deposit, err := f.SendDeposit(&account, depositAmount, testPublicKey)
 	if err != nil {
@@ -100,7 +97,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		amount:       firstWithdrawalAmount,
 		fromNote:     deposit.Note,
 	}
-	firstWithdrawal, err := f.SendWithdrawal(firstWithdrawalOpts, testPublicKey)
+	firstWithdrawal, err := f.SendWithdrawal(firstWithdrawalOpts, testPrivKey)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}
@@ -118,7 +115,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		amount:    availableToWithdraw,
 		fromNote:  firstWithdrawal.Note,
 	}
-	secondWithdrawal, err := f.SendWithdrawal(secondWithdrawalOpts, testPublicKey)
+	secondWithdrawal, err := f.SendWithdrawal(secondWithdrawalOpts, testPrivKey)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}
@@ -129,7 +126,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 	// Let's try one more withdrawal, it should fail because the last change is zero
 	thirdWithdrawalOpts := secondWithdrawalOpts
 	thirdWithdrawalOpts.amount = 1
-	_, err = f.SendWithdrawal(thirdWithdrawalOpts, testPublicKey)
+	_, err = f.SendWithdrawal(thirdWithdrawalOpts, testPrivKey)
 	if err != nil {
 		fmt.Println("Error making withdrawal, as expected")
 	} else {
@@ -149,7 +146,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		fromNote:  note,
 	}
 	for i := 1; i <= config.RootsCount*2; i++ {
-		w, err := f.SendWithdrawal(withdrawalOpts, testPublicKey)
+		w, err := f.SendWithdrawal(withdrawalOpts, testPrivKey)
 		if err != nil {
 			t.Fatalf("Error making withdrawal %d/100: %s", i, err)
 		}
@@ -172,10 +169,11 @@ func TestWrongLsigVerifier(t *testing.T) {
 	}
 
 	// create a eddsa key pair
-	testPublicKey2, err := generateTestKeyPair()
+	testPrivKey2, err := generateTestKeyPair()
 	if err != nil {
 		t.Fatalf("Error generating test key pair: %s", err)
 	}
+	testPublicKey2 := testPrivKey2.PublicKey
 
 	depositAmount := uint64(10 * 1e6)
 	depositLsig := f.App.DepositVerifier
@@ -202,7 +200,7 @@ func TestWrongLsigVerifier(t *testing.T) {
 		recipient: account.Address,
 		amount:    depositAmount - 1*1e6,
 		fromNote:  deposit.Note,
-	}, testPublicKey2)
+	}, testPrivKey2)
 	if err == nil {
 		t.Fatalf("Ouch, no error making withdrawal with dummy lsig: %s", err)
 	}
@@ -214,10 +212,11 @@ func TestWithdrawToAddressBiggerThanMod(t *testing.T) {
 	biggerThanModAddress := generateBiggerThanModAddress()
 
 	// create a eddsa key pair
-	testPublicKey3, err := generateTestKeyPair()
+	testPrivKey3, err := generateTestKeyPair()
 	if err != nil {
 		t.Fatalf("Error generating test key pair: %s", err)
 	}
+	testPublicKey3 := testPrivKey3.PublicKey
 
 	// let's make a deposit
 	depositorAccount := crypto.GenerateAccount()
@@ -238,7 +237,7 @@ func TestWithdrawToAddressBiggerThanMod(t *testing.T) {
 		amount:    withdrawAmount,
 		fromNote:  deposit.Note,
 	}
-	withdrawal, err := f.SendWithdrawal(withdrawalOpts, testPublicKey3)
+	withdrawal, err := f.SendWithdrawal(withdrawalOpts, testPrivKey3)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}

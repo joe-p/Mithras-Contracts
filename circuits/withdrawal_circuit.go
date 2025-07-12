@@ -5,9 +5,12 @@ import (
 
 	"github.com/giuliop/HermesVault-smartcontracts/config"
 
+	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
+	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/signature/eddsa"
 )
 
 const MerkleTreeLevels = config.MerkleTreeLevels
@@ -39,9 +42,8 @@ type WithdrawalCircuit struct {
 	PubX frontend.Variable
 	PubY frontend.Variable
 
-	// TODO: verify signature
-	// // Signature is the signature of the withdrawal commitment signed by the withdrawal keypair
-	// Signature eddsa.Signature
+	// Signature is the signature of the withdrawal commitment signed by the withdrawal keypair
+	Signature eddsa.Signature
 
 	Path [MerkleTreeLevels + 1]frontend.Variable
 }
@@ -71,20 +73,23 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// TODO: verify signature
-	//
-	// curve, err := twistededwards.NewEdCurve(api, ecc.BN254)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// err = eddsa.Verify(curve, c.Signature, c.Commitment, c.PubKey, &mimc)
-	//
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// mimc.Reset()
+	// Verify the signature of the withdrawal commitment
+	curve, err := twistededwards.NewEdCurve(api, tedwards.BN254)
+	if err != nil {
+		return err
+	}
+
+	pubkey := eddsa.PublicKey{}
+	pubkey.A.X = c.PubX
+	pubkey.A.Y = c.PubY
+
+	err = eddsa.Verify(curve, c.Signature, c.Commitment, pubkey, &mimc)
+
+	if err != nil {
+		return err
+	}
+
+	mimc.Reset()
 
 	// Path[0] == hash(Amount, K, R, Pubkey)
 	mimc.Write(c.Amount)

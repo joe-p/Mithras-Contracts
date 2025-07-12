@@ -8,9 +8,11 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	"log"
 	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
 	"github.com/giuliop/HermesVault-smartcontracts/circuits"
@@ -21,7 +23,9 @@ import (
 	"github.com/algorand/go-algorand-sdk/v2/crypto"
 	"github.com/algorand/go-algorand-sdk/v2/transaction"
 	"github.com/algorand/go-algorand-sdk/v2/types"
+	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
+	sigEddsa "github.com/consensys/gnark/std/signature/eddsa"
 	ap "github.com/giuliop/algoplonk"
 	"github.com/giuliop/algoplonk/utils"
 )
@@ -332,7 +336,7 @@ type WithdrawalOpts struct {
 // and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, pubkey eddsa.PublicKey) (*Withdrawal, error) {
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, privkey *eddsa.PrivateKey) (*Withdrawal, error) {
 
 	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
 	withdrawalAmount, fee := opts.amount, opts.fee
@@ -350,7 +354,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, pubkey eddsa.PublicKey) 
 	}
 
 	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote := f.NewNote(change, pubkey)
+	changeNote := f.NewNote(change, privkey.PublicKey)
 	commitment := changeNote.commitment
 
 	if fromNote.insertedIndex == -1 {
@@ -375,8 +379,18 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, pubkey eddsa.PublicKey) 
 
 	nullifier := f.MakeNullifier(fromNote)
 
-	x := pubkey.A.X.Bytes()
-	y := pubkey.A.Y.Bytes()
+	x := privkey.PublicKey.A.X.Bytes()
+	y := privkey.PublicKey.A.Y.Bytes()
+
+	hFunc := hash.MIMC_BN254.New()
+	sig, err := privkey.Sign(commitment, hFunc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign withdrawal commitment: %v", err)
+	}
+
+	circuitSig := sigEddsa.Signature{}
+	circuitSig.Assign(twistededwards.BN254, sig)
+
 	assignment := &circuits.WithdrawalCircuit{
 		Recipient:  recipient[:],
 		Withdrawal: withdrawalAmount,
@@ -394,6 +408,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, pubkey eddsa.PublicKey) 
 		Path:       path,
 		PubX:       x[:],
 		PubY:       y[:],
+		Signature:  circuitSig,
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
