@@ -19,12 +19,12 @@ type DepositCircuit struct {
 	Amount     frontend.Variable `gnark:",public"`
 	Commitment frontend.Variable `gnark:",public"`
 
-	// PubX and PubY are the x and y of the withdrawal public key. This should ONLY be used for signing
-	// withdrawal commitments
-	PubX frontend.Variable
-	PubY frontend.Variable
-	K    frontend.Variable
-	R    frontend.Variable
+	// X and Y for output pubkey
+	OutputX frontend.Variable
+	OutputY frontend.Variable
+
+	K frontend.Variable
+	R frontend.Variable
 }
 
 func (c *DepositCircuit) Define(api frontend.API) error {
@@ -35,8 +35,8 @@ func (c *DepositCircuit) Define(api frontend.API) error {
 	mimc.Write(c.K)
 	mimc.Write(c.R)
 
-	mimc.Write(c.PubX)
-	mimc.Write(c.PubY)
+	mimc.Write(c.OutputX)
+	mimc.Write(c.OutputY)
 
 	h := mimc.Sum()
 

@@ -185,8 +185,8 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, pubkey eddsa
 		Commitment: note.commitment,
 		K:          note.k,
 		R:          note.r,
-		PubX:       x[:],
-		PubY:       y[:],
+		OutputX:    x[:],
+		OutputY:    y[:],
 	}
 	verifiedProof, err := f.App.DepositCc.Verify(assignment)
 	if err != nil {
@@ -406,9 +406,12 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, privkey *eddsa.PrivateKe
 		R2:         changeNote.r,
 		Index:      index,
 		Path:       path,
-		PubX:       x[:],
-		PubY:       y[:],
+		InputX:     x[:],
+		InputY:     y[:],
 		Signature:  circuitSig,
+		// TODO: Use different keypair for output
+		OutputX: x[:],
+		OutputY: y[:],
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {

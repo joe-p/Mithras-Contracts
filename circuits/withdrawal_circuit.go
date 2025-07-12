@@ -29,18 +29,22 @@ type WithdrawalCircuit struct {
 	Commitment frontend.Variable `gnark:",public"`
 	Nullifier  frontend.Variable `gnark:",public"`
 	Root       frontend.Variable `gnark:",public"`
-	K          frontend.Variable
-	R          frontend.Variable
-	Amount     frontend.Variable
-	Change     frontend.Variable
-	K2         frontend.Variable
-	R2         frontend.Variable
-	Index      frontend.Variable
 
-	// PubKey is a public key of the withdrawal keypair. This keypair should ONLY be used for signing
-	// withdrawal commitments
-	PubX frontend.Variable
-	PubY frontend.Variable
+	// X and Y for output pubkey
+	OutputX frontend.Variable `gnark:",public"`
+	OutputY frontend.Variable `gnark:",public"`
+
+	K      frontend.Variable
+	R      frontend.Variable
+	Amount frontend.Variable
+	Change frontend.Variable
+	K2     frontend.Variable
+	R2     frontend.Variable
+	Index  frontend.Variable
+
+	// X and Y for input pubkey
+	InputX frontend.Variable
+	InputY frontend.Variable
 
 	// Signature is the signature of the withdrawal commitment signed by the withdrawal keypair
 	Signature eddsa.Signature
@@ -58,12 +62,12 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// hash(hash(Change, K2, R2, PubKey)) == Commitment
+	// hash(hash(Change, K2, R2, Output)) == Commitment
 	mimc.Write(c.Change)
 	mimc.Write(c.K2)
 	mimc.Write(c.R2)
-	mimc.Write(c.PubX)
-	mimc.Write(c.PubY)
+	mimc.Write(c.OutputX)
+	mimc.Write(c.OutputY)
 	h := mimc.Sum()
 
 	mimc.Reset()
@@ -80,8 +84,8 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	}
 
 	pubkey := eddsa.PublicKey{}
-	pubkey.A.X = c.PubX
-	pubkey.A.Y = c.PubY
+	pubkey.A.X = c.InputX
+	pubkey.A.Y = c.InputY
 
 	err = eddsa.Verify(curve, c.Signature, c.Commitment, pubkey, &mimc)
 
@@ -91,12 +95,12 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// Path[0] == hash(Amount, K, R, Pubkey)
+	// Path[0] == hash(Amount, K, R, Output)
 	mimc.Write(c.Amount)
 	mimc.Write(c.K)
 	mimc.Write(c.R)
-	mimc.Write(c.PubX)
-	mimc.Write(c.PubY)
+	mimc.Write(c.InputX)
+	mimc.Write(c.InputY)
 	api.AssertIsEqual(c.Path[0], mimc.Sum())
 
 	mimc.Reset()
