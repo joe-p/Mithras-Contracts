@@ -336,7 +336,7 @@ type WithdrawalOpts struct {
 // and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, privkey *eddsa.PrivateKey) (*Withdrawal, error) {
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Withdrawal, error) {
 
 	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
 	withdrawalAmount, fee := opts.amount, opts.fee
@@ -354,7 +354,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, privkey *eddsa.PrivateKe
 	}
 
 	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote := f.NewNote(change, privkey.PublicKey)
+	changeNote := f.NewNote(change, outputPubkey)
 	commitment := changeNote.commitment
 
 	if fromNote.insertedIndex == -1 {
@@ -379,17 +379,20 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, privkey *eddsa.PrivateKe
 
 	nullifier := f.MakeNullifier(fromNote)
 
-	x := privkey.PublicKey.A.X.Bytes()
-	y := privkey.PublicKey.A.Y.Bytes()
-
 	hFunc := hash.MIMC_BN254.New()
-	sig, err := privkey.Sign(commitment, hFunc)
+
+	sig, err := inputPrivkey.Sign(commitment, hFunc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign withdrawal commitment: %v", err)
 	}
 
 	circuitSig := sigEddsa.Signature{}
 	circuitSig.Assign(twistededwards.BN254, sig)
+
+	inputX := inputPrivkey.PublicKey.A.X.Bytes()
+	inputY := inputPrivkey.PublicKey.A.Y.Bytes()
+	outputX := outputPubkey.A.X.Bytes()
+	outputY := outputPubkey.A.Y.Bytes()
 
 	assignment := &circuits.WithdrawalCircuit{
 		Recipient:  recipient[:],
@@ -406,12 +409,11 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, privkey *eddsa.PrivateKe
 		R2:         changeNote.r,
 		Index:      index,
 		Path:       path,
-		InputX:     x[:],
-		InputY:     y[:],
+		InputX:     inputX[:],
+		InputY:     inputY[:],
 		Signature:  circuitSig,
-		// TODO: Use different keypair for output
-		OutputX: x[:],
-		OutputY: y[:],
+		OutputX:    outputX[:],
+		OutputY:    outputY[:],
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
