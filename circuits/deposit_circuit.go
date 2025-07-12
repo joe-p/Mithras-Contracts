@@ -20,8 +20,8 @@ type DepositCircuit struct {
 	Commitment frontend.Variable `gnark:",public"`
 
 	// X and Y for output pubkey
-	OutputX frontend.Variable
-	OutputY frontend.Variable
+	OutputX frontend.Variable `gnark:",public"`
+	OutputY frontend.Variable `gnark:",public"`
 
 	K frontend.Variable
 	R frontend.Variable
