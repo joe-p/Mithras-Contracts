@@ -31,8 +31,11 @@ type WithdrawalCircuit struct {
 	Root       frontend.Variable `gnark:",public"`
 
 	// X and Y for output pubkey
-	OutputX frontend.Variable `gnark:",public"`
-	OutputY frontend.Variable `gnark:",public"`
+	OutputX frontend.Variable
+	OutputY frontend.Variable
+
+	// Transfer is a private uint64 used to create a new output without an on-chain transfer
+	Transfer frontend.Variable
 
 	K      frontend.Variable
 	R      frontend.Variable
@@ -115,10 +118,11 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	// We express it by:
 	// 		W <= A
 	//		F <= A - W
-	//		C = A - W - F
-	api.AssertIsLessOrEqual(c.Withdrawal, c.Amount)
-	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.Amount, c.Withdrawal))
-	api.AssertIsEqual(c.Change, api.Sub(c.Amount, c.Withdrawal, c.Fee))
+	//		C = A - W - Fee
+	totalSpent := api.Add(c.Withdrawal, c.Transfer)
+	api.AssertIsLessOrEqual(totalSpent, c.Amount)
+	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.Amount, totalSpent))
+	api.AssertIsEqual(c.Change, api.Sub(c.Amount, totalSpent, c.Fee))
 
 	return nil
 }
