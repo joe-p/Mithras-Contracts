@@ -46,7 +46,7 @@ type WithdrawalCircuit struct {
 	InputX frontend.Variable
 	InputY frontend.Variable
 
-	// Signature is the signature of the withdrawal commitment signed by the withdrawal keypair
+	// Signature is the signature of the withdrawal commitment signed by the input keypair
 	Signature eddsa.Signature
 
 	Path [MerkleTreeLevels + 1]frontend.Variable
