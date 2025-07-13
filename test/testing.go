@@ -18,6 +18,7 @@ import (
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
 	"github.com/giuliop/HermesVault-smartcontracts/circuits"
 	"github.com/giuliop/HermesVault-smartcontracts/config"
+	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
 
 	"github.com/algorand/go-algorand-sdk/v2/abi"
 	"github.com/algorand/go-algorand-sdk/v2/client/v2/common/models"
@@ -53,6 +54,8 @@ type Note struct {
 	r             []byte
 	outputX       []byte // public key x coordinate
 	outputY       []byte // public key y coordinate
+	encryptedK    []byte // ECIES encrypted k for recovery
+	encryptedR    []byte // ECIES encrypted r for recovery
 	insertedIndex int    // -1 if not inserted, leaf index in tree otherwise
 }
 
@@ -168,12 +171,22 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 	kDomain[31] = 'k'
 	rDomain[31] = 'r'
 
+	// TODO: Add sender, lv, lease to the K and R hashes
 	k := f.Tree.hashFunc(sharedSecret, kDomain)
 	r := f.Tree.hashFunc(sharedSecret, rDomain)
 
 	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
 
-	inputPrivKey.Bytes()
+	// Encrypt k and r using ECIES for recovery
+	encryptedK, err := encrypt.ECIESEncrypt(k, outputPubkey)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt k: %v", err))
+	}
+
+	encryptedR, err := encrypt.ECIESEncrypt(r, outputPubkey)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt r: %v", err))
+	}
 
 	x := outputPubkey.A.X.Bytes()
 	y := outputPubkey.A.Y.Bytes()
@@ -185,6 +198,8 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 		r:             r,
 		outputX:       x[:],
 		outputY:       y[:],
+		encryptedK:    encryptedK,
+		encryptedR:    encryptedR,
 		insertedIndex: -1,
 	}
 }
@@ -194,6 +209,51 @@ func uint64ToBytes32(amount uint64) []byte {
 	amountBytes := make([]byte, 32)
 	binary.BigEndian.PutUint64(amountBytes[24:], amount)
 	return amountBytes
+}
+
+// RecoverNote attempts to decrypt and reconstruct a note from encrypted data
+// using the provided private key. Returns nil if decryption fails.
+func (f *Frontend) RecoverNote(amount uint64, outputX, outputY, encryptedK, encryptedR []byte, privkey eddsa.PrivateKey, insertedIndex int) (*Note, error) {
+	// Decrypt k and r using the private key
+	k, err := encrypt.ECIESDecrypt(encryptedK, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt k: %v", err)
+	}
+
+	r, err := encrypt.ECIESDecrypt(encryptedR, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt r: %v", err)
+	}
+
+	// Reconstruct the public key from coordinates
+	var outputPubkey eddsa.PublicKey
+	outputPubkey.A.X.SetBytes(outputX)
+	outputPubkey.A.Y.SetBytes(outputY)
+
+	// Compute the commitment to verify correctness
+	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
+
+	return &Note{
+		Amount:        amount,
+		commitment:    commitment,
+		k:             k,
+		r:             r,
+		outputX:       outputX,
+		outputY:       outputY,
+		encryptedK:    encryptedK,
+		encryptedR:    encryptedR,
+		insertedIndex: insertedIndex,
+	}, nil
+}
+
+// TryRecoverNote attempts to recover a note without returning an error.
+// Returns nil if the note cannot be recovered (e.g., wrong private key).
+func (f *Frontend) TryRecoverNote(amount uint64, outputX, outputY, encryptedK, encryptedR []byte, privkey eddsa.PrivateKey, insertedIndex int) *Note {
+	note, err := f.RecoverNote(amount, outputX, outputY, encryptedK, encryptedR, privkey, insertedIndex)
+	if err != nil {
+		return nil
+	}
+	return note
 }
 
 // SendDeposit creates a deposit transaction and sends it to the network
