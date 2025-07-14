@@ -28,6 +28,12 @@ Since the sender, receiver, and amount of Mithras transactions are kept private,
 
 ## TODO
 
+### Support Sending to an Algorand Address
+
+Currently every transfer/withdrawal must specify a Mithras public key as the receiver, which is different from Algorand addresses. If the circuit allowed either a Mithras public key OR an Algorand address, then it would be possible to send funds directly to an Algorand address without knowing their Mithras public key. This also allows Mithras transactions to inherit some of the signing-related properties of Algorand, such as lsigs, msig, and rekeys. This would also enable app accounts to use the Mithras protocol if we use an app verifier instead of lsig (which is very expensive, but possible with AlgoPlonk).
+
+This would require the address executing the withdrawal to be a public input to the withdrawal circuit. The circuit would skip the EdDSA signature verification if an address is provided and verification would be done by the smart contract instead.
+
 ### Switch to BLS12-381
 
 Currently the circuit uses BN254 and the baby jubjub curve. We should switch to BLS12-381 and the Bandersnatch curve which is a more modern curve that offers better security.
