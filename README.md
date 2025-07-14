@@ -28,6 +28,10 @@ Since the sender, receiver, and amount of Mithras transactions are kept private,
 
 ## TODO
 
+### Switch to BLS12-381
+
+Currently the circuit uses BN254 and the baby jubjub curve. We should switch to BLS12-381 and the Bandersnatch curve which is a more modern curve that offers better security.
+
 ### ASA Support
 
 This should be relatively straightforward to implement and just requires a commitment to the ASA ID in each transaction. The main challenge is determining how MBR should work.
