@@ -10,7 +10,7 @@ import (
 const (
 	MerkleTreeLevels    = 32
 	RootsCount          = 50
-	Curve               = ecc.BN254
+	Curve               = ecc.BLS12_381
 	RandomNonceByteSize = 31
 
 	DepositMinimumAmount = 1_000_000 // microalgo, or 1 algo

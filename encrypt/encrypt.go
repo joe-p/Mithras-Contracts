@@ -12,8 +12,8 @@ import (
 	"math/big"
 	"os"
 
-	bnt "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	bnt "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/term"

@@ -280,7 +280,7 @@ class APP(py.ARC4Contract, avm_version=11):
                 left = subtree[i*32:(i+1)*32]
                 right = currentHash
 
-            currentHash = op.mimc(op.MiMCConfigurations.BN254Mp110, left + right)
+            currentHash = op.mimc(op.MiMCConfigurations.BLS12_381Mp111, left + right)
             index = index >> 1
 
         op.Box.replace(b'subtree', 0, subtree)

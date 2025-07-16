@@ -16,7 +16,7 @@ import (
 )
 
 const MerkleTreeLevels = 16
-const curve = ecc.BN254
+const curve = ecc.BLS12_381
 
 type MerkleCircuit struct {
 	Root  frontend.Variable `gnark:",public"`

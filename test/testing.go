@@ -11,8 +11,8 @@ import (
 	"log"
 	"math/big"
 
-	bnt "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	bnt "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
@@ -542,7 +542,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 
 	nullifier := f.MakeNullifier(fromNote)
 
-	hFunc := hash.MIMC_BN254.New()
+	hFunc := hash.MIMC_BLS12_381.New()
 
 	sig, err := spenderPrivkey.Sign(unspentCommitment, hFunc)
 	if err != nil {
@@ -550,7 +550,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 	}
 
 	circuitSig := sigEddsa.Signature{}
-	circuitSig.Assign(twistededwards.BN254, sig)
+	circuitSig.Assign(twistededwards.BLS12_381, sig)
 
 	inputX := spenderPrivkey.PublicKey.A.X.Bytes()
 	inputY := spenderPrivkey.PublicKey.A.Y.Bytes()
