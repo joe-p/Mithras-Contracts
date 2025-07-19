@@ -61,15 +61,11 @@ func TestNoteRecovery(t *testing.T) {
 
 	// Create a note
 	amount := uint64(1000)
-	note := frontend.NewNote(amount, *inputPrivKey, outputPubKey)
+	note, encryptedNote := frontend.NewNote(amount, *inputPrivKey, outputPubKey)
 
 	// Try to recover the note using the output private key
 	recoveredNote, err := frontend.RecoverNote(
-		note.Amount,
-		note.outputX,
-		note.outputY,
-		note.encryptedK,
-		note.encryptedR,
+		encryptedNote,
 		*outputPrivKey,
 		note.insertedIndex,
 	)
@@ -119,15 +115,11 @@ func TestNoteRecoveryWithWrongKey(t *testing.T) {
 
 	// Create a note
 	amount := uint64(1000)
-	note := frontend.NewNote(amount, *inputPrivKey, outputPubKey)
+	note, encryptedNote := frontend.NewNote(amount, *inputPrivKey, outputPubKey)
 
 	// Try to recover the note using the wrong private key - should fail
 	recoveredNote := frontend.TryRecoverNote(
-		note.Amount,
-		note.outputX,
-		note.outputY,
-		note.encryptedK,
-		note.encryptedR,
+		encryptedNote,
 		*wrongPrivKey,
 		note.insertedIndex,
 	)

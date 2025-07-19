@@ -54,9 +54,15 @@ type Note struct {
 	r             []byte
 	outputX       []byte // public key x coordinate
 	outputY       []byte // public key y coordinate
-	encryptedK    []byte // ECIES encrypted k for recovery
-	encryptedR    []byte // ECIES encrypted r for recovery
 	insertedIndex int    // -1 if not inserted, leaf index in tree otherwise
+}
+
+type EncryptedNote struct {
+	EncryptedK      []byte
+	EncryptedR      []byte
+	EncryptedOutput []byte
+	EncryptedInput  []byte
+	EncryptedAmount []byte
 }
 
 func (f *Frontend) MakeNullifier(note *Note) []byte {
@@ -150,7 +156,7 @@ func NewRandomNonce() []byte {
 	return res
 }
 
-func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputPubkey eddsa.PublicKey) *Note {
+func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Note, *EncryptedNote) {
 	// Extract scalar from inputPrivKey.Bytes().
 	const pubSize = 32
 	const sizeFr = 32
@@ -183,7 +189,9 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 		panic(fmt.Errorf("failed to generate ephemeral key: %v", err))
 	}
 
-	// Encrypt k and r using ECIES for recovery
+	// K, R, output, input, and amount are encrypted using ECIES
+	// In this test, we are using the same pubkey and ephemeralPriv for all encrypted values
+	// In an actual implementation, you could have a separate view key
 	encryptedK, err := encrypt.ECIESEncrypt(k, outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
 	if err != nil {
 		panic(fmt.Errorf("failed to encrypt k: %v", err))
@@ -194,20 +202,43 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 		panic(fmt.Errorf("failed to encrypt r: %v", err))
 	}
 
+	encryptedOutput, err := encrypt.ECIESEncrypt(outputPubkey.Bytes(), outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt output public key: %v", err))
+	}
+
+	encryptedInput, err := encrypt.ECIESEncrypt(inputPrivKey.PublicKey.Bytes(), outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt input public key: %v", err))
+	}
+
+	encryptedAmount, err := encrypt.ECIESEncrypt(uint64ToBytes32(amount), outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt amount: %v", err))
+	}
+
 	x := outputPubkey.A.X.Bytes()
 	y := outputPubkey.A.Y.Bytes()
 
-	return &Note{
+	note := &Note{
 		Amount:        amount,
 		commitment:    commitment,
 		k:             k,
 		r:             r,
 		outputX:       x[:],
 		outputY:       y[:],
-		encryptedK:    encryptedK,
-		encryptedR:    encryptedR,
 		insertedIndex: -1,
 	}
+
+	encryptedNote := &EncryptedNote{
+		EncryptedK:      encryptedK,
+		EncryptedR:      encryptedR,
+		EncryptedOutput: encryptedOutput,
+		EncryptedInput:  encryptedInput,
+		EncryptedAmount: encryptedAmount,
+	}
+
+	return note, encryptedNote
 }
 
 // uint64ToBytes32 converts a uint64 to a 32 byte array
@@ -218,44 +249,65 @@ func uint64ToBytes32(amount uint64) []byte {
 }
 
 // RecoverNote attempts to decrypt and reconstruct a note from encrypted data
-// using the provided private key. Returns nil if decryption fails.
-func (f *Frontend) RecoverNote(amount uint64, outputX, outputY, encryptedK, encryptedR []byte, privkey eddsa.PrivateKey, insertedIndex int) (*Note, error) {
+// using the provided private key. Returns a Note if successful.
+func (f *Frontend) RecoverNote(encryptedNote *EncryptedNote, privkey eddsa.PrivateKey, insertedIndex int) (*Note, error) {
 	// Decrypt k and r using the private key
-	k, err := encrypt.ECIESDecrypt(encryptedK, privkey)
+	k, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedK, privkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt k: %v", err)
 	}
 
-	r, err := encrypt.ECIESDecrypt(encryptedR, privkey)
+	r, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedR, privkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt r: %v", err)
 	}
 
-	// Reconstruct the public key from coordinates
+	// Decrypt the output public key
+	outputPubkeyBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedOutput, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt output: %v", err)
+	}
+
+	// Decrypt the amount
+	amountBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedAmount, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt amount: %v", err)
+	}
+
+	// Convert amount bytes to uint64 (stored in last 8 bytes of 32-byte array)
+	amount := binary.BigEndian.Uint64(amountBytes[24:])
+
+	// Reconstruct the public key from bytes
 	var outputPubkey eddsa.PublicKey
-	outputPubkey.A.X.SetBytes(outputX)
-	outputPubkey.A.Y.SetBytes(outputY)
+	_, err = outputPubkey.SetBytes(outputPubkeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reconstruct public key: %v", err)
+	}
+
+	// Extract coordinates
+	outputXCoord := outputPubkey.A.X.Bytes()
+	outputYCoord := outputPubkey.A.Y.Bytes()
 
 	// Compute the commitment to verify correctness
 	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
 
-	return &Note{
+	note := &Note{
 		Amount:        amount,
 		commitment:    commitment,
 		k:             k,
 		r:             r,
-		outputX:       outputX,
-		outputY:       outputY,
-		encryptedK:    encryptedK,
-		encryptedR:    encryptedR,
+		outputX:       outputXCoord[:],
+		outputY:       outputYCoord[:],
 		insertedIndex: insertedIndex,
-	}, nil
+	}
+
+	return note, nil
 }
 
 // TryRecoverNote attempts to recover a note without returning an error.
 // Returns nil if the note cannot be recovered (e.g., wrong private key).
-func (f *Frontend) TryRecoverNote(amount uint64, outputX, outputY, encryptedK, encryptedR []byte, privkey eddsa.PrivateKey, insertedIndex int) *Note {
-	note, err := f.RecoverNote(amount, outputX, outputY, encryptedK, encryptedR, privkey, insertedIndex)
+func (f *Frontend) TryRecoverNote(encryptedNote *EncryptedNote, privkey eddsa.PrivateKey, insertedIndex int) *Note {
+	note, err := f.RecoverNote(encryptedNote, privkey, insertedIndex)
 	if err != nil {
 		return nil
 	}
@@ -266,7 +318,7 @@ func (f *Frontend) TryRecoverNote(amount uint64, outputX, outputY, encryptedK, e
 func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey eddsa.PublicKey, inputPrivkey eddsa.PrivateKey) (
 	*Deposit, error) {
 
-	note := f.NewNote(amount, inputPrivkey, outputPubkey)
+	note, _ := f.NewNote(amount, inputPrivkey, outputPubkey)
 
 	x := outputPubkey.A.X.Bytes()
 	y := outputPubkey.A.Y.Bytes()
@@ -444,7 +496,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.Priv
 	}
 
 	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote := f.NewNote(change, *inputPrivkey, outputPubkey)
+	changeNote, _ := f.NewNote(change, *inputPrivkey, outputPubkey)
 	commitment := changeNote.commitment
 
 	if fromNote.insertedIndex == -1 {

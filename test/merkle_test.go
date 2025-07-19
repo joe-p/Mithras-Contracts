@@ -59,7 +59,7 @@ func TestMerkle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	note := f.NewNote(uint64(100), *privkey, privkey.PublicKey)
+	note, _ := f.NewNote(uint64(100), *privkey, privkey.PublicKey)
 	index := tree.addLeaf(note.commitment)
 	note.insertedIndex = index
 
