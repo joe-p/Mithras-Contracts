@@ -19,8 +19,14 @@ func TestECIESEncryptDecrypt(t *testing.T) {
 	// Test data
 	testData := []byte("test secret data for k or r")
 
+	// Generate ephemeral key pair for encryption
+	ephemeralPriv, err := eddsa.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("Failed to generate ephemeral key: %v", err)
+	}
+
 	// Encrypt
-	encrypted, err := encrypt.ECIESEncrypt(testData, pubKey)
+	encrypted, err := encrypt.ECIESEncrypt(testData, pubKey, ephemeralPriv.PublicKey, *ephemeralPriv)
 	if err != nil {
 		t.Fatalf("Failed to encrypt: %v", err)
 	}

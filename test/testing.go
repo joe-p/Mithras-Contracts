@@ -177,13 +177,19 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 
 	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
 
+	// Generate ephemeral key pair for ECIES encryption
+	ephemeralPriv, err := eddsa.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(fmt.Errorf("failed to generate ephemeral key: %v", err))
+	}
+
 	// Encrypt k and r using ECIES for recovery
-	encryptedK, err := encrypt.ECIESEncrypt(k, outputPubkey)
+	encryptedK, err := encrypt.ECIESEncrypt(k, outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
 	if err != nil {
 		panic(fmt.Errorf("failed to encrypt k: %v", err))
 	}
 
-	encryptedR, err := encrypt.ECIESEncrypt(r, outputPubkey)
+	encryptedR, err := encrypt.ECIESEncrypt(r, outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
 	if err != nil {
 		panic(fmt.Errorf("failed to encrypt r: %v", err))
 	}

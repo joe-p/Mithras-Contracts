@@ -124,14 +124,8 @@ func Encrytp(plaintext string) (string, error) {
 	return encoded, nil
 }
 
-// ECIESEncrypt encrypts data using ECIES with the given EdDSA public key
-func ECIESEncrypt(data []byte, pubkey eddsa.PublicKey) ([]byte, error) {
-	// Generate ephemeral key pair
-	ephemeralPriv, err := eddsa.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate ephemeral key: %v", err)
-	}
-
+// ECIESEncrypt encrypts data using ECIES with the given EdDSA public key and ephemeral public key
+func ECIESEncrypt(data []byte, pubkey eddsa.PublicKey, ephemeralPub eddsa.PublicKey, ephemeralPriv eddsa.PrivateKey) ([]byte, error) {
 	// Extract scalar from ephemeral private key
 	const pubSize = 32
 	const sizeFr = 32
@@ -163,7 +157,7 @@ func ECIESEncrypt(data []byte, pubkey eddsa.PublicKey) ([]byte, error) {
 	}
 
 	// Prepend ephemeral public key to encrypted data
-	ephemeralPubBytes := ephemeralPriv.PublicKey.Bytes()
+	ephemeralPubBytes := ephemeralPub.Bytes()
 	result := append(ephemeralPubBytes, encrypted...)
 
 	return result, nil
