@@ -23,8 +23,8 @@ func init() {
 }
 
 type WithdrawalCircuit struct {
-	Recipient  frontend.Variable `gnark:",public"`
-	Withdrawal frontend.Variable `gnark:",public"`
+	WithdrawalAddress  frontend.Variable `gnark:",public"`
+	WithdrawalAmount frontend.Variable `gnark:",public"`
 	Fee        frontend.Variable `gnark:",public"`
 	Commitment frontend.Variable `gnark:",public"`
 	Nullifier  frontend.Variable `gnark:",public"`
@@ -34,16 +34,16 @@ type WithdrawalCircuit struct {
 	OutputX frontend.Variable
 	OutputY frontend.Variable
 
-	// Transfer is a private uint64 used to create a new output without an on-chain transfer
-	Transfer frontend.Variable
+	// Spend is a private uint64 used to create a new output without an on-chain transfer
+	Spend frontend.Variable
 
-	K      frontend.Variable
-	R      frontend.Variable
-	Amount frontend.Variable
-	Change frontend.Variable
-	K2     frontend.Variable
-	R2     frontend.Variable
-	Index  frontend.Variable
+	SpendableK      frontend.Variable
+	SpendableR      frontend.Variable
+	SpendableAmount frontend.Variable
+	Unspent frontend.Variable
+	UnspentK     frontend.Variable
+	UnspentR     frontend.Variable
+	SpendableIndex  frontend.Variable
 
 	// X and Y for input pubkey
 	InputX frontend.Variable
@@ -52,23 +52,23 @@ type WithdrawalCircuit struct {
 	// Signature is the signature of the withdrawal commitment signed by the input keypair
 	Signature eddsa.Signature
 
-	Path [MerkleTreeLevels + 1]frontend.Variable
+	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
 }
 
 func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc, _ := mimc.NewMiMC(api)
 
 	// hash(Amount,K) == Nullifier
-	mimc.Write(c.Amount)
-	mimc.Write(c.K)
+	mimc.Write(c.SpendableAmount)
+	mimc.Write(c.SpendableK)
 	api.AssertIsEqual(c.Nullifier, mimc.Sum())
 
 	mimc.Reset()
 
 	// hash(hash(Change, K2, R2, OutputX, OutputY)) == Commitment
-	mimc.Write(c.Change)
-	mimc.Write(c.K2)
-	mimc.Write(c.R2)
+	mimc.Write(c.Unspent)
+	mimc.Write(c.UnspentK)
+	mimc.Write(c.UnspentR)
 	mimc.Write(c.OutputX)
 	mimc.Write(c.OutputY)
 	h := mimc.Sum()
@@ -99,30 +99,30 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Reset()
 
 	// Path[0] == hash(Amount, K, R, InputX, InputY)
-	mimc.Write(c.Amount)
-	mimc.Write(c.K)
-	mimc.Write(c.R)
+	mimc.Write(c.SpendableAmount)
+	mimc.Write(c.SpendableK)
+	mimc.Write(c.SpendableR)
 	mimc.Write(c.InputX)
 	mimc.Write(c.InputY)
-	api.AssertIsEqual(c.Path[0], mimc.Sum())
+	api.AssertIsEqual(c.SpendablePath[0], mimc.Sum())
 
 	mimc.Reset()
 
 	// Amount,K, is in the merkle tree at index
 	mp := merkle.MerkleProof{
 		RootHash: c.Root,
-		Path:     c.Path[:],
+		Path:     c.SpendablePath[:],
 	}
-	mp.VerifyProof(api, &mimc, c.Index)
+	mp.VerifyProof(api, &mimc, c.SpendableIndex)
 	// Change == Amount - Withdrawal - Fee, and C, A, W, F are all non-negative
 	// We express it by:
 	// 		W <= A
 	//		F <= A - W
 	//		C = A - W - Fee
-	totalSpent := api.Add(c.Withdrawal, c.Transfer)
-	api.AssertIsLessOrEqual(totalSpent, c.Amount)
-	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.Amount, totalSpent))
-	api.AssertIsEqual(c.Change, api.Sub(c.Amount, totalSpent, c.Fee))
+	totalSpent := api.Add(c.WithdrawalAmount, c.Spend)
+	api.AssertIsLessOrEqual(totalSpent, c.SpendableAmount)
+	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.SpendableAmount, totalSpent))
+	api.AssertIsEqual(c.Unspent, api.Sub(c.SpendableAmount, totalSpent, c.Fee))
 
 	return nil
 }

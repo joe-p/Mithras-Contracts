@@ -537,26 +537,26 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.Priv
 	outputY := outputPubkey.A.Y.Bytes()
 
 	assignment := &circuits.WithdrawalCircuit{
-		Recipient:  recipient[:],
-		Withdrawal: withdrawalAmount,
+		WithdrawalAddress:  recipient[:],
+		WithdrawalAmount: withdrawalAmount,
 		Fee:        fee,
 		Commitment: commitment,
 		Nullifier:  nullifier,
 		Root:       root,
-		K:          fromNote.k,
-		R:          fromNote.r,
-		Amount:     fromNote.Amount,
-		Change:     changeNote.Amount,
-		K2:         changeNote.k,
-		R2:         changeNote.r,
-		Index:      index,
-		Path:       path,
+		SpendableK:          fromNote.k,
+		SpendableR:          fromNote.r,
+		SpendableAmount:     fromNote.Amount,
+		Unspent:     changeNote.Amount,
+		UnspentK:         changeNote.k,
+		UnspentR:         changeNote.r,
+		SpendableIndex:      index,
+		SpendablePath:       path,
 		InputX:     inputX[:],
 		InputY:     inputY[:],
 		Signature:  circuitSig,
 		OutputX:    outputX[:],
 		OutputY:    outputY[:],
-		Transfer:   0, // TODO: test transfers
+		Spend:   0, // TODO: test transfers
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
