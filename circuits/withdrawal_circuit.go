@@ -30,7 +30,7 @@ type WithdrawalCircuit struct {
 	Root       frontend.Variable `gnark:",public"`
 	
 	UnspentCommitment frontend.Variable `gnark:",public"`
-	SpendCommitment frontend.Variable `gnark:",public"`
+	SpentCommitment frontend.Variable `gnark:",public"`
 
 	// X and Y for spender pubkey
 	SpenderX frontend.Variable
@@ -49,9 +49,9 @@ type WithdrawalCircuit struct {
 	SpendableIndex  frontend.Variable
 	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
 
-	SpendAmount frontend.Variable
-	SpendK     frontend.Variable
-	SpendR     frontend.Variable
+	SpentAmount frontend.Variable
+	SpentK     frontend.Variable
+	SpentR     frontend.Variable
 	
 	UnspentAmount frontend.Variable
 	UnspentK     frontend.Variable
@@ -81,15 +81,15 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Reset()
 
 	// hash(hash(SpendAmount, SpendK, SpendR, OutputX, OutputY)) == SpendCommitment
-	mimc.Write(c.SpendAmount)
-	mimc.Write(c.SpendK)
-	mimc.Write(c.SpendR)
+	mimc.Write(c.SpentAmount)
+	mimc.Write(c.SpentK)
+	mimc.Write(c.SpentR)
 	mimc.Write(c.OutputX)
 	mimc.Write(c.OutputY)
 	h = mimc.Sum()
 	mimc.Reset()
 	mimc.Write(h)
-	api.AssertIsEqual(c.SpendCommitment, mimc.Sum())
+	api.AssertIsEqual(c.SpentCommitment, mimc.Sum())
 	mimc.Reset()
 
 	// Verify the the Input pubkey signed the withdrawal commitment
@@ -131,7 +131,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	// 		W <= A
 	//		F <= A - W
 	//		C = A - W - Fee
-	totalSpent := api.Add(c.WithdrawalAmount, c.SpendAmount)
+	totalSpent := api.Add(c.WithdrawalAmount, c.SpentAmount)
 	api.AssertIsLessOrEqual(totalSpent, c.SpendableAmount)
 	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.SpendableAmount, totalSpent))
 	api.AssertIsEqual(c.UnspentAmount, api.Sub(c.SpendableAmount, totalSpent, c.Fee))
