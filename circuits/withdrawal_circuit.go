@@ -30,29 +30,29 @@ type WithdrawalCircuit struct {
 	Nullifier  frontend.Variable `gnark:",public"`
 	Root       frontend.Variable `gnark:",public"`
 
+	// X and Y for spender pubkey
+	SpenderX frontend.Variable
+	SpenderY frontend.Variable
+	
+	// Signature is the signature of the  signed by the input keypair
+	Signature eddsa.Signature
+	
 	// X and Y for output pubkey
 	OutputX frontend.Variable
 	OutputY frontend.Variable
-
+	
 	// Spend is a private uint64 used to create a new output without an on-chain transfer
 	Spend frontend.Variable
 
 	SpendableK      frontend.Variable
 	SpendableR      frontend.Variable
-	SpendableAmount frontend.Variable
-	Unspent frontend.Variable
+	SpendableAmount frontend.Variable	
+	SpendableIndex  frontend.Variable
+	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
+
+	UnspentAmount frontend.Variable
 	UnspentK     frontend.Variable
 	UnspentR     frontend.Variable
-	SpendableIndex  frontend.Variable
-
-	// X and Y for input pubkey
-	InputX frontend.Variable
-	InputY frontend.Variable
-
-	// Signature is the signature of the withdrawal commitment signed by the input keypair
-	Signature eddsa.Signature
-
-	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
 }
 
 func (c *WithdrawalCircuit) Define(api frontend.API) error {
@@ -66,7 +66,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Reset()
 
 	// hash(hash(Change, K2, R2, OutputX, OutputY)) == Commitment
-	mimc.Write(c.Unspent)
+	mimc.Write(c.UnspentAmount)
 	mimc.Write(c.UnspentK)
 	mimc.Write(c.UnspentR)
 	mimc.Write(c.OutputX)
@@ -87,8 +87,8 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	}
 
 	pubkey := eddsa.PublicKey{}
-	pubkey.A.X = c.InputX
-	pubkey.A.Y = c.InputY
+	pubkey.A.X = c.SpenderX
+	pubkey.A.Y = c.SpenderY
 
 	err = eddsa.Verify(curve, c.Signature, c.Commitment, pubkey, &mimc)
 
@@ -102,8 +102,8 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Write(c.SpendableAmount)
 	mimc.Write(c.SpendableK)
 	mimc.Write(c.SpendableR)
-	mimc.Write(c.InputX)
-	mimc.Write(c.InputY)
+	mimc.Write(c.SpenderX)
+	mimc.Write(c.SpenderY)
 	api.AssertIsEqual(c.SpendablePath[0], mimc.Sum())
 
 	mimc.Reset()
@@ -122,7 +122,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	totalSpent := api.Add(c.WithdrawalAmount, c.Spend)
 	api.AssertIsLessOrEqual(totalSpent, c.SpendableAmount)
 	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.SpendableAmount, totalSpent))
-	api.AssertIsEqual(c.Unspent, api.Sub(c.SpendableAmount, totalSpent, c.Fee))
+	api.AssertIsEqual(c.UnspentAmount, api.Sub(c.SpendableAmount, totalSpent, c.Fee))
 
 	return nil
 }
