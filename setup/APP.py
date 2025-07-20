@@ -22,7 +22,7 @@ ROOTS_COUNT = 50
 INITIAL_ROOT = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7"
 
 DEPOSIT_OPCODE_BUDGET_OPUP = 37_100
-WITHDRAWAL_OPCODE_BUDGET_OPUP = 39_200
+WITHDRAWAL_OPCODE_BUDGET_OPUP = 109_600
 
 # app MBR increase for each nullifier box (microalgo)
 # 2500 + 400 * 32 = 15_300
@@ -160,6 +160,7 @@ class APP(py.ARC4Contract, avm_version=11):
         nullifier = public_inputs[3].copy()
         root = public_inputs[4].copy()
         unspent_commitment = public_inputs[5].copy()
+        spend_commitment = public_inputs[6].copy()
 
         # Check mod of recipient address matches recipient_mod
         assert recipient_mod == Bytes32.from_bytes(
@@ -204,8 +205,10 @@ class APP(py.ARC4Contract, avm_version=11):
         if not no_change.native:
             assert self.tree_not_full(), "Tree is full"
             self.update_tree_with(unspent_commitment)
+            assert self.tree_not_full(), "Tree is full after adding unspent commitment"
+            self.update_tree_with(spend_commitment)
 
-        return (self.inserted_leaves_count - 1, self.root.copy())
+        return (self.inserted_leaves_count - 2, self.root.copy())
 
     @subroutine
     def tree_not_full(self) -> bool:

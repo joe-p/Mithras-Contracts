@@ -678,6 +678,8 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 	unspentNote.insertedIndex = int(changeIndex)
 	f.Tree.leafHashes = append(f.Tree.leafHashes, unspentNote.commitment)
 
+	f.Tree.leafHashes = append(f.Tree.leafHashes, spendNote.commitment)
+
 	w := &Withdrawal{
 		ToAddress: recipient.String(),
 		TxnIds:    res.TxIDs,
