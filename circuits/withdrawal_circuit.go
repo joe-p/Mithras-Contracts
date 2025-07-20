@@ -76,12 +76,21 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Write(c.SpenderX)
 	mimc.Write(c.SpenderY)
 	h := mimc.Sum()
-
 	mimc.Reset()
-
 	mimc.Write(h)
 	api.AssertIsEqual(c.UnspentCommitment, mimc.Sum())
+	mimc.Reset()
 
+	// hash(hash(SpendAmount, SpendK, SpendR, OutputX, OutputY)) == SpendCommitment
+	mimc.Write(c.SpendAmount)
+	mimc.Write(c.SpendK)
+	mimc.Write(c.SpendR)
+	mimc.Write(c.OutputX)
+	mimc.Write(c.OutputY)
+	h = mimc.Sum()
+	mimc.Reset()
+	mimc.Write(h)
+	api.AssertIsEqual(c.SpendCommitment, mimc.Sum())
 	mimc.Reset()
 
 	// Verify the the Input pubkey signed the withdrawal commitment
