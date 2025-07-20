@@ -49,7 +49,6 @@ type WithdrawalCircuit struct {
 	SpendableIndex  frontend.Variable
 	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
 
-	// TODO: Use this to create a SpendCommitment, which is hash(hash( SpendAmount, SpendK, SpendR, OutputX, OutputY))
 	SpendAmount frontend.Variable
 	SpendK     frontend.Variable
 	SpendR     frontend.Variable

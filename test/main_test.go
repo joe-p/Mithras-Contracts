@@ -99,17 +99,17 @@ func TestDepositWithdrawMBR(t *testing.T) {
 	}
 
 	// Attempt to withdrawal with the wrong key
-	// newKey, err := generateTestKeyPair()
-	// if err != nil {
-	// 	t.Fatalf("Error generating new test key pair: %s", err)
-	// }
-	//
-	// _, err = f.SendWithdrawal(firstWithdrawalOpts, newKey, newKey.PublicKey)
-	// if err == nil {
-	// 	t.Fatalf("Withdrawal should have failed with wrong key but it didn't")
-	// } else {
-	// 	fmt.Println("Error making withdrawal with wrong key as expected")
-	// }
+	newKey, err := generateTestKeyPair()
+	if err != nil {
+		t.Fatalf("Error generating new test key pair: %s", err)
+	}
+
+	_, err = f.SendWithdrawal(firstWithdrawalOpts, newKey, newKey.PublicKey)
+	if err == nil {
+		t.Fatalf("Withdrawal should have failed with wrong key but it didn't")
+	} else {
+		fmt.Println("Error making withdrawal with wrong key as expected")
+	}
 
 	firstWithdrawal, err := f.SendWithdrawal(firstWithdrawalOpts, testPrivKey, testPublicKey)
 	if err != nil {
