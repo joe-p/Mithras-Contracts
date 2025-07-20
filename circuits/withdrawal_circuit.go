@@ -26,7 +26,7 @@ type WithdrawalCircuit struct {
 	WithdrawalAddress  frontend.Variable `gnark:",public"`
 	WithdrawalAmount frontend.Variable `gnark:",public"`
 	Fee        frontend.Variable `gnark:",public"`
-	Commitment frontend.Variable `gnark:",public"`
+	UnspentCommitment frontend.Variable `gnark:",public"`
 	Nullifier  frontend.Variable `gnark:",public"`
 	Root       frontend.Variable `gnark:",public"`
 
@@ -76,7 +76,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Reset()
 
 	mimc.Write(h)
-	api.AssertIsEqual(c.Commitment, mimc.Sum())
+	api.AssertIsEqual(c.UnspentCommitment, mimc.Sum())
 
 	mimc.Reset()
 
@@ -90,7 +90,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	pubkey.A.X = c.SpenderX
 	pubkey.A.Y = c.SpenderY
 
-	err = eddsa.Verify(curve, c.Signature, c.Commitment, pubkey, &mimc)
+	err = eddsa.Verify(curve, c.Signature, c.UnspentCommitment, pubkey, &mimc)
 
 	if err != nil {
 		return err

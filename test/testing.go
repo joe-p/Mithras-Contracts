@@ -542,7 +542,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		WithdrawalAddress:  recipient[:],
 		WithdrawalAmount: withdrawalAmount,
 		Fee:        fee,
-		Commitment: commitment,
+		UnspentCommitment: commitment,
 		Nullifier:  nullifier,
 		Root:       root,
 		SpendableK:          fromNote.k,
