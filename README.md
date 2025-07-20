@@ -36,13 +36,14 @@ This would require the address executing the withdrawal to be a public input to 
 
 ### Switch to BLS12-381
 
-Currently the circuit uses BN254 and the baby jubjub curve. We should switch to BLS12-381 and the Bandersnatch curve which is a more modern curve that offers better security.
+Currently the circuit uses BN254 and the baby jubjub curve. We should switch to BLS12-381 and the Bandersnatch curve which is a more modern curve that offers better security. 
+
+This is mainly blocked by https://github.com/giuliop/AlgoPlonk/pull/2. Once AlgoPlonk supports a larger BLS12-381 setup, we should be able to seamlessly switch to it.
 
 ### ASA Support
 
 This should be relatively straightforward to implement and just requires a commitment to the ASA ID in each transaction. The main challenge is determining how MBR should work.
 
-### Include Encrypted Amount and Receiver in Transactions
+### View Keys
 
-Currently transactions do not include the encrypted amount and receiver, but no changes are needed to the app logic or circuit to support this. ECEIS encryption is implemented and tested using the bahy jubjub keys, so it is mostly just a matter of adding them to the Algorand transaction.
-
+Currently an outside observer cannot determine the details of transactions without knowing all the secrets. This makes it hard to safely audit transactions and hard to users to determine their spendable balance. To solve this, we can add encrypted secrets to the Algorand transactions. The secrets would be encrypted with ECIES using a public key that is intended for viewing only. 
