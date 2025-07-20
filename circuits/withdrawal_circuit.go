@@ -41,15 +41,15 @@ type WithdrawalCircuit struct {
 	OutputX frontend.Variable
 	OutputY frontend.Variable
 	
-	// Spend is a private uint64 used to create a new output without an on-chain transfer
-	Spend frontend.Variable
-
 	SpendableK      frontend.Variable
 	SpendableR      frontend.Variable
 	SpendableAmount frontend.Variable	
 	SpendableIndex  frontend.Variable
 	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
 
+	// TODO: Use this to create a SpendCommitment, which is hash(hash( SpendAmount, SpendK, SpendR, OutputX, OutputY))
+	SpendAmount frontend.Variable
+	
 	UnspentAmount frontend.Variable
 	UnspentK     frontend.Variable
 	UnspentR     frontend.Variable
@@ -108,7 +108,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// Amount,K, is in the merkle tree at index
+	// SpendableAmount, SpendableK is in the merkle tree at index
 	mp := merkle.MerkleProof{
 		RootHash: c.Root,
 		Path:     c.SpendablePath[:],
@@ -119,7 +119,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	// 		W <= A
 	//		F <= A - W
 	//		C = A - W - Fee
-	totalSpent := api.Add(c.WithdrawalAmount, c.Spend)
+	totalSpent := api.Add(c.WithdrawalAmount, c.SpendAmount)
 	api.AssertIsLessOrEqual(totalSpent, c.SpendableAmount)
 	api.AssertIsLessOrEqual(c.Fee, api.Sub(c.SpendableAmount, totalSpent))
 	api.AssertIsEqual(c.UnspentAmount, api.Sub(c.SpendableAmount, totalSpent, c.Fee))

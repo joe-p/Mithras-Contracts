@@ -558,7 +558,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		Signature:  circuitSig,
 		OutputX:    outputX[:],
 		OutputY:    outputY[:],
-		Spend:   0, // TODO: test transfers
+		SpendAmount:   0, // TODO: test transfers
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
