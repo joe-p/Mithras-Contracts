@@ -26,9 +26,11 @@ type WithdrawalCircuit struct {
 	WithdrawalAddress  frontend.Variable `gnark:",public"`
 	WithdrawalAmount frontend.Variable `gnark:",public"`
 	Fee        frontend.Variable `gnark:",public"`
-	UnspentCommitment frontend.Variable `gnark:",public"`
 	Nullifier  frontend.Variable `gnark:",public"`
 	Root       frontend.Variable `gnark:",public"`
+	
+	UnspentCommitment frontend.Variable `gnark:",public"`
+	SpendCommitment frontend.Variable `gnark:",public"`
 
 	// X and Y for spender pubkey
 	SpenderX frontend.Variable
@@ -49,6 +51,8 @@ type WithdrawalCircuit struct {
 
 	// TODO: Use this to create a SpendCommitment, which is hash(hash( SpendAmount, SpendK, SpendR, OutputX, OutputY))
 	SpendAmount frontend.Variable
+	SpendK     frontend.Variable
+	SpendR     frontend.Variable
 	
 	UnspentAmount frontend.Variable
 	UnspentK     frontend.Variable

@@ -157,9 +157,9 @@ class APP(py.ARC4Contract, avm_version=11):
         recipient_mod = public_inputs[0].copy()
         withdrawal_bytes = public_inputs[1].copy()
         fee_bytes = public_inputs[2].copy()
-        commitment = public_inputs[3].copy()
-        nullifier = public_inputs[4].copy()
-        root = public_inputs[5].copy()
+        nullifier = public_inputs[3].copy()
+        root = public_inputs[4].copy()
+        unspent_commitment = public_inputs[5].copy()
 
         # Check mod of recipient address matches recipient_mod
         assert recipient_mod == Bytes32.from_bytes(
@@ -203,7 +203,7 @@ class APP(py.ARC4Contract, avm_version=11):
         # Save the change commitment, unless no_change is set or the tree is full
         if not no_change.native:
             assert self.tree_not_full(), "Tree is full"
-            self.update_tree_with(commitment)
+            self.update_tree_with(unspent_commitment)
 
         return (self.inserted_leaves_count - 1, self.root.copy())
 

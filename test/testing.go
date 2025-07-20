@@ -470,6 +470,7 @@ type WithdrawalOpts struct {
 	fee          uint64
 	noChange     bool
 	fromNote     *Note
+	spendAmount uint64
 }
 
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
@@ -478,12 +479,9 @@ type WithdrawalOpts struct {
 // and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.PrivateKey) (*Withdrawal, error) {
-	// For now there is no separate output
-	outputPubkey := spenderPrivkey.PublicKey
-
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Withdrawal, error) {
 	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
-	withdrawalAmount, fee := opts.amount, opts.fee
+	withdrawalAmount, spendAmount, fee := opts.amount, opts.spendAmount, opts.fee
 	noChange, fromNote := opts.noChange, opts.fromNote
 
 	if fee == 0 {
@@ -497,9 +495,12 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		}
 	}
 
-	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote, _ := f.NewNote(change, *spenderPrivkey, outputPubkey)
-	commitment := changeNote.commitment
+	unspent := fromNote.Amount - withdrawalAmount - fee
+	unspentNote, _ := f.NewNote(unspent, *spenderPrivkey, spenderPrivkey.PublicKey)
+	unspentCommitment := unspentNote.commitment
+
+	spendNote, _ := f.NewNote(spendAmount, *spenderPrivkey, outputPubkey)
+	spendCommitment := spendNote.commitment
 
 	if fromNote.insertedIndex == -1 {
 		return nil, fmt.Errorf("note not inserted in the tree")
@@ -525,7 +526,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 
 	hFunc := hash.MIMC_BN254.New()
 
-	sig, err := spenderPrivkey.Sign(commitment, hFunc)
+	sig, err := spenderPrivkey.Sign(unspentCommitment, hFunc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign withdrawal commitment: %v", err)
 	}
@@ -542,15 +543,15 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		WithdrawalAddress:  recipient[:],
 		WithdrawalAmount: withdrawalAmount,
 		Fee:        fee,
-		UnspentCommitment: commitment,
+		UnspentCommitment: unspentCommitment,
 		Nullifier:  nullifier,
 		Root:       root,
 		SpendableK:          fromNote.k,
 		SpendableR:          fromNote.r,
 		SpendableAmount:     fromNote.Amount,
-		UnspentAmount:     changeNote.Amount,
-		UnspentK:         changeNote.k,
-		UnspentR:         changeNote.r,
+		UnspentAmount:     unspentNote.Amount,
+		UnspentK:         unspentNote.k,
+		UnspentR:         unspentNote.r,
 		SpendableIndex:      index,
 		SpendablePath:       path,
 		SpenderX:     inputX[:],
@@ -559,6 +560,9 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		OutputX:    outputX[:],
 		OutputY:    outputY[:],
 		SpendAmount:   0, // TODO: test transfers
+		SpendK:       spendNote.k,
+		SpendR:       spendNote.r,
+		SpendCommitment: spendCommitment,
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
@@ -671,13 +675,13 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		return nil, fmt.Errorf("failed to get method result: %v", err)
 	}
 
-	changeNote.insertedIndex = int(changeIndex)
-	f.Tree.leafHashes = append(f.Tree.leafHashes, changeNote.commitment)
+	unspentNote.insertedIndex = int(changeIndex)
+	f.Tree.leafHashes = append(f.Tree.leafHashes, unspentNote.commitment)
 
 	w := &Withdrawal{
 		ToAddress: recipient.String(),
 		TxnIds:    res.TxIDs,
-		Note:      changeNote,
+		Note:      unspentNote,
 	}
 
 	f.Withdrawals = append(f.Withdrawals, w)
