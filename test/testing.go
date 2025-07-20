@@ -478,7 +478,9 @@ type WithdrawalOpts struct {
 // and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Withdrawal, error) {
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.PrivateKey) (*Withdrawal, error) {
+	// For now there is no separate output
+	outputPubkey := spenderPrivkey.PublicKey
 
 	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
 	withdrawalAmount, fee := opts.amount, opts.fee
@@ -496,7 +498,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.Priv
 	}
 
 	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote, _ := f.NewNote(change, *inputPrivkey, outputPubkey)
+	changeNote, _ := f.NewNote(change, *spenderPrivkey, outputPubkey)
 	commitment := changeNote.commitment
 
 	if fromNote.insertedIndex == -1 {
@@ -523,7 +525,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.Priv
 
 	hFunc := hash.MIMC_BN254.New()
 
-	sig, err := inputPrivkey.Sign(commitment, hFunc)
+	sig, err := spenderPrivkey.Sign(commitment, hFunc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign withdrawal commitment: %v", err)
 	}
@@ -531,8 +533,8 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, inputPrivkey *eddsa.Priv
 	circuitSig := sigEddsa.Signature{}
 	circuitSig.Assign(twistededwards.BN254, sig)
 
-	inputX := inputPrivkey.PublicKey.A.X.Bytes()
-	inputY := inputPrivkey.PublicKey.A.Y.Bytes()
+	inputX := spenderPrivkey.PublicKey.A.X.Bytes()
+	inputY := spenderPrivkey.PublicKey.A.Y.Bytes()
 	outputX := outputPubkey.A.X.Bytes()
 	outputY := outputPubkey.A.Y.Bytes()
 

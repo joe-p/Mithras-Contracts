@@ -104,18 +104,14 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		t.Fatalf("Error generating new test key pair: %s", err)
 	}
 
-	_, err = f.SendWithdrawal(firstWithdrawalOpts, newKey, newKey.PublicKey)
+	_, err = f.SendWithdrawal(firstWithdrawalOpts, newKey)
 	if err == nil {
 		t.Fatalf("Withdrawal should have failed with wrong key but it didn't")
 	} else {
 		fmt.Println("Error making withdrawal with wrong key as expected")
 	}
 
-	firstOutKey, err := generateTestKeyPair()
-	if err != nil {
-		t.Fatalf("Error generating first output key pair: %s", err)
-	}
-	firstWithdrawal, err := f.SendWithdrawal(firstWithdrawalOpts, testPrivKey, firstOutKey.PublicKey)
+	firstWithdrawal, err := f.SendWithdrawal(firstWithdrawalOpts, testPrivKey)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}
@@ -134,11 +130,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		fromNote:  firstWithdrawal.Note,
 	}
 
-	secondOutKey, err := generateTestKeyPair()
-	if err != nil {
-		t.Fatalf("Error generating second output key pair: %s", err)
-	}
-	secondWithdrawal, err := f.SendWithdrawal(secondWithdrawalOpts, firstOutKey, secondOutKey.PublicKey)
+	secondWithdrawal, err := f.SendWithdrawal(secondWithdrawalOpts, testPrivKey) 
 
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
@@ -150,7 +142,7 @@ func TestDepositWithdrawMBR(t *testing.T) {
 	// Let's try one more withdrawal, it should fail because the last change is zero
 	thirdWithdrawalOpts := secondWithdrawalOpts
 	thirdWithdrawalOpts.amount = 1
-	_, err = f.SendWithdrawal(thirdWithdrawalOpts, secondOutKey, secondOutKey.PublicKey)
+	_, err = f.SendWithdrawal(thirdWithdrawalOpts, testPrivKey)
 	if err != nil {
 		fmt.Println("Error making withdrawal, as expected")
 	} else {
@@ -175,15 +167,8 @@ func TestDepositWithdrawMBR(t *testing.T) {
 		fromNote:  note,
 	}
 
-	lastOutputKey := newKeypair
 	for i := 1; i <= config.RootsCount*2; i++ {
-		inputKey := lastOutputKey
-		lastOutputKey, err = generateTestKeyPair()
-		if err != nil {
-			t.Fatalf("Error generating last output key pair: %s", err)
-		}
-
-		w, err := f.SendWithdrawal(withdrawalOpts, inputKey, lastOutputKey.PublicKey)
+		w, err := f.SendWithdrawal(withdrawalOpts, newKeypair)
 		if err != nil {
 			t.Fatalf("Error making withdrawal %d/100: %s", i, err)
 		}
@@ -237,7 +222,7 @@ func TestWrongLsigVerifier(t *testing.T) {
 		recipient: account.Address,
 		amount:    depositAmount - 1*1e6,
 		fromNote:  deposit.Note,
-	}, testPrivKey2, testPublicKey2)
+	}, testPrivKey2)
 	if err == nil {
 		t.Fatalf("Ouch, no error making withdrawal with dummy lsig: %s", err)
 	}
@@ -274,7 +259,7 @@ func TestWithdrawToAddressBiggerThanMod(t *testing.T) {
 		amount:    withdrawAmount,
 		fromNote:  deposit.Note,
 	}
-	withdrawal, err := f.SendWithdrawal(withdrawalOpts, testPrivKey3, testPublicKey3)
+	withdrawal, err := f.SendWithdrawal(withdrawalOpts, testPrivKey3)
 	if err != nil {
 		t.Fatalf("Error making withdrawal: %s", err)
 	}
