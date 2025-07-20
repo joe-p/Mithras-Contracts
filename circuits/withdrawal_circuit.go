@@ -65,12 +65,12 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// hash(hash(Change, K2, R2, OutputX, OutputY)) == Commitment
+	// hash(hash(UnspentAmount, UnspentK, UnspentR, SpenderX, SpenderY)) == UnspentCommitment
 	mimc.Write(c.UnspentAmount)
 	mimc.Write(c.UnspentK)
 	mimc.Write(c.UnspentR)
-	mimc.Write(c.OutputX)
-	mimc.Write(c.OutputY)
+	mimc.Write(c.SpenderX)
+	mimc.Write(c.SpenderY)
 	h := mimc.Sum()
 
 	mimc.Reset()
@@ -98,7 +98,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 
 	mimc.Reset()
 
-	// Path[0] == hash(Amount, K, R, InputX, InputY)
+	// Path[0] == hash(SpendableAmount, SpendableK, SpendableR, SpenderX, SpenderY)
 	mimc.Write(c.SpendableAmount)
 	mimc.Write(c.SpendableK)
 	mimc.Write(c.SpendableR)
