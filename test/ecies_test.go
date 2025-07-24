@@ -67,7 +67,7 @@ func TestNoteRecovery(t *testing.T) {
 	recoveredNote, err := frontend.RecoverNote(
 		encryptedNote,
 		*outputPrivKey,
-		note.insertedIndex,
+		note.InsertedIndex,
 	)
 	if err != nil {
 		t.Fatalf("Failed to recover note: %v", err)
@@ -78,15 +78,15 @@ func TestNoteRecovery(t *testing.T) {
 		t.Fatalf("Amount mismatch: got %d, expected %d", recoveredNote.Amount, note.Amount)
 	}
 
-	if string(recoveredNote.k) != string(note.k) {
+	if string(recoveredNote.K) != string(note.K) {
 		t.Fatalf("k value mismatch")
 	}
 
-	if string(recoveredNote.r) != string(note.r) {
+	if string(recoveredNote.R) != string(note.R) {
 		t.Fatalf("r value mismatch")
 	}
 
-	if string(recoveredNote.commitment) != string(note.commitment) {
+	if string(recoveredNote.Commitment) != string(note.Commitment) {
 		t.Fatalf("commitment mismatch")
 	}
 }
@@ -121,7 +121,7 @@ func TestNoteRecoveryWithWrongKey(t *testing.T) {
 	recoveredNote := frontend.TryRecoverNote(
 		encryptedNote,
 		*wrongPrivKey,
-		note.insertedIndex,
+		note.InsertedIndex,
 	)
 
 	// Should return nil since decryption should fail

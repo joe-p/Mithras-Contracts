@@ -60,8 +60,8 @@ func TestMerkle(t *testing.T) {
 	}
 
 	note, _ := f.NewNote(uint64(100), *privkey, privkey.PublicKey)
-	index := tree.addLeaf(note.commitment)
-	note.insertedIndex = index
+	index := tree.addLeaf(note.Commitment)
+	note.InsertedIndex = index
 
 	path, err := tree.createMerkleProof(f.MakeLeafValue(note), index)
 	if err != nil {

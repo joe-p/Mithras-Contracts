@@ -49,12 +49,12 @@ type TreeConfig struct {
 // as Commitment
 type Note struct {
 	Amount        uint64
-	commitment    []byte
-	k             []byte
-	r             []byte
-	outputX       []byte // public key x coordinate
-	outputY       []byte // public key y coordinate
-	insertedIndex int    // -1 if not inserted, leaf index in tree otherwise
+	Commitment    []byte
+	K             []byte
+	R             []byte
+	OutputX       []byte // public key x coordinate
+	OutputY       []byte // public key y coordinate
+	InsertedIndex int    // -1 if not inserted, leaf index in tree otherwise
 }
 
 type EncryptedNote struct {
@@ -66,12 +66,12 @@ type EncryptedNote struct {
 }
 
 func (f *Frontend) MakeNullifier(note *Note) []byte {
-	return f.Tree.hashFunc(uint64ToBytes32(note.Amount), note.k)
+	return f.Tree.hashFunc(uint64ToBytes32(note.Amount), note.K)
 }
 
 func (f *Frontend) MakeLeafValue(n *Note) []byte {
 	ab := uint64ToBytes32(n.Amount)
-	h := f.Tree.hashFunc(ab, n.k, n.r, n.outputX, n.outputY)
+	h := f.Tree.hashFunc(ab, n.K, n.R, n.OutputX, n.OutputY)
 	return h
 }
 
@@ -222,12 +222,12 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 
 	note := &Note{
 		Amount:        amount,
-		commitment:    commitment,
-		k:             k,
-		r:             r,
-		outputX:       x[:],
-		outputY:       y[:],
-		insertedIndex: -1,
+		Commitment:    commitment,
+		K:             k,
+		R:             r,
+		OutputX:       x[:],
+		OutputY:       y[:],
+		InsertedIndex: -1,
 	}
 
 	encryptedNote := &EncryptedNote{
@@ -293,12 +293,12 @@ func (f *Frontend) RecoverNote(encryptedNote *EncryptedNote, privkey eddsa.Priva
 
 	note := &Note{
 		Amount:        amount,
-		commitment:    commitment,
-		k:             k,
-		r:             r,
-		outputX:       outputXCoord[:],
-		outputY:       outputYCoord[:],
-		insertedIndex: insertedIndex,
+		Commitment:    commitment,
+		K:             k,
+		R:             r,
+		OutputX:       outputXCoord[:],
+		OutputY:       outputYCoord[:],
+		InsertedIndex: insertedIndex,
 	}
 
 	return note, nil
@@ -324,9 +324,9 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey
 	y := outputPubkey.A.Y.Bytes()
 	assignment := &circuits.DepositCircuit{
 		Amount:     amount,
-		Commitment: note.commitment,
-		K:          note.k,
-		R:          note.r,
+		Commitment: note.Commitment,
+		K:          note.K,
+		R:          note.R,
 		OutputX:    x[:],
 		OutputY:    y[:],
 	}
@@ -448,8 +448,8 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey
 		return nil, fmt.Errorf("root mismatch: %v != %v", root, rootOnchain)
 	}
 
-	note.insertedIndex = int(index)
-	f.Tree.leafHashes = append(f.Tree.leafHashes, note.commitment)
+	note.InsertedIndex = int(index)
+	f.Tree.leafHashes = append(f.Tree.leafHashes, note.Commitment)
 
 	d := &Deposit{
 		FromAddress: from.Address.String(),
@@ -470,7 +470,7 @@ type WithdrawalOpts struct {
 	fee          uint64
 	noChange     bool
 	fromNote     *Note
-	spendAmount uint64
+	spendAmount  uint64
 }
 
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
@@ -497,15 +497,15 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 
 	unspent := fromNote.Amount - withdrawalAmount - fee
 	unspentNote, _ := f.NewNote(unspent, *spenderPrivkey, spenderPrivkey.PublicKey)
-	unspentCommitment := unspentNote.commitment
+	unspentCommitment := unspentNote.Commitment
 
 	spendNote, _ := f.NewNote(spendAmount, *spenderPrivkey, outputPubkey)
-	spendCommitment := spendNote.commitment
+	spendCommitment := spendNote.Commitment
 
-	if fromNote.insertedIndex == -1 {
+	if fromNote.InsertedIndex == -1 {
 		return nil, fmt.Errorf("note not inserted in the tree")
 	}
-	index := fromNote.insertedIndex
+	index := fromNote.InsertedIndex
 	leaf := f.MakeLeafValue(fromNote)
 
 	merkleProof, err := f.Tree.createMerkleProof(leaf, index)
@@ -540,29 +540,29 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 	outputY := outputPubkey.A.Y.Bytes()
 
 	assignment := &circuits.WithdrawalCircuit{
-		WithdrawalAddress:  recipient[:],
-		WithdrawalAmount: withdrawalAmount,
-		Fee:        fee,
+		WithdrawalAddress: recipient[:],
+		WithdrawalAmount:  withdrawalAmount,
+		Fee:               fee,
 		UnspentCommitment: unspentCommitment,
-		Nullifier:  nullifier,
-		Root:       root,
-		SpendableK:          fromNote.k,
-		SpendableR:          fromNote.r,
-		SpendableAmount:     fromNote.Amount,
+		Nullifier:         nullifier,
+		Root:              root,
+		SpendableK:        fromNote.K,
+		SpendableR:        fromNote.R,
+		SpendableAmount:   fromNote.Amount,
 		UnspentAmount:     unspentNote.Amount,
-		UnspentK:         unspentNote.k,
-		UnspentR:         unspentNote.r,
-		SpendableIndex:      index,
-		SpendablePath:       path,
-		SpenderX:     inputX[:],
-		SpenderY:     inputY[:],
-		Signature:  circuitSig,
-		OutputX:    outputX[:],
-		OutputY:    outputY[:],
-		SpentAmount:   0, // TODO: test spent amount
-		SpentK:       spendNote.k,
-		SpentR:       spendNote.r,
-		SpentCommitment: spendCommitment,
+		UnspentK:          unspentNote.K,
+		UnspentR:          unspentNote.R,
+		SpendableIndex:    index,
+		SpendablePath:     path,
+		SpenderX:          inputX[:],
+		SpenderY:          inputY[:],
+		Signature:         circuitSig,
+		OutputX:           outputX[:],
+		OutputY:           outputY[:],
+		SpentAmount:       0, // TODO: test spent amount
+		SpentK:            spendNote.K,
+		SpentR:            spendNote.R,
+		SpentCommitment:   spendCommitment,
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
@@ -675,10 +675,10 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 		return nil, fmt.Errorf("failed to get method result: %v", err)
 	}
 
-	unspentNote.insertedIndex = int(changeIndex)
-	f.Tree.leafHashes = append(f.Tree.leafHashes, unspentNote.commitment)
+	unspentNote.InsertedIndex = int(changeIndex)
+	f.Tree.leafHashes = append(f.Tree.leafHashes, unspentNote.Commitment)
 
-	f.Tree.leafHashes = append(f.Tree.leafHashes, spendNote.commitment)
+	f.Tree.leafHashes = append(f.Tree.leafHashes, spendNote.Commitment)
 
 	w := &Withdrawal{
 		ToAddress: recipient.String(),
