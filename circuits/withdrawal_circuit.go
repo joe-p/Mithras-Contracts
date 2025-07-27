@@ -23,39 +23,39 @@ func init() {
 }
 
 type WithdrawalCircuit struct {
-	WithdrawalAddress  frontend.Variable `gnark:",public"`
-	WithdrawalAmount frontend.Variable `gnark:",public"`
-	Fee        frontend.Variable `gnark:",public"`
-	Nullifier  frontend.Variable `gnark:",public"`
-	Root       frontend.Variable `gnark:",public"`
-	
+	WithdrawalAddress frontend.Variable `gnark:",public"`
+	WithdrawalAmount  frontend.Variable `gnark:",public"`
+	Fee               frontend.Variable `gnark:",public"`
+	Nullifier         frontend.Variable `gnark:",public"`
+	Root              frontend.Variable `gnark:",public"`
+
 	UnspentCommitment frontend.Variable `gnark:",public"`
-	SpentCommitment frontend.Variable `gnark:",public"`
+	SpentCommitment   frontend.Variable `gnark:",public"`
 
 	// X and Y for spender pubkey
 	SpenderX frontend.Variable
 	SpenderY frontend.Variable
-	
+
 	// Signature is the signature of the  signed by the input keypair
 	Signature eddsa.Signature
-	
+
 	// X and Y for output pubkey
 	OutputX frontend.Variable
 	OutputY frontend.Variable
-	
+
 	SpendableK      frontend.Variable
 	SpendableR      frontend.Variable
-	SpendableAmount frontend.Variable	
+	SpendableAmount frontend.Variable
 	SpendableIndex  frontend.Variable
-	SpendablePath [MerkleTreeLevels + 1]frontend.Variable
+	SpendablePath   [MerkleTreeLevels + 1]frontend.Variable
 
 	SpentAmount frontend.Variable
-	SpentK     frontend.Variable
-	SpentR     frontend.Variable
-	
+	SpentK      frontend.Variable
+	SpentR      frontend.Variable
+
 	UnspentAmount frontend.Variable
-	UnspentK     frontend.Variable
-	UnspentR     frontend.Variable
+	UnspentK      frontend.Variable
+	UnspentR      frontend.Variable
 }
 
 func (c *WithdrawalCircuit) Define(api frontend.API) error {
