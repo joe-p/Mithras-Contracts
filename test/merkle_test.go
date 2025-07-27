@@ -38,7 +38,7 @@ func (c *MerkleCircuit) Define(api frontend.API) error {
 
 func TestMerkle(t *testing.T) {
 	c := &MerkleCircuit{}
-	cc, err := ap.Compile(c, curve, ap_setup.Trusted)
+	cc, err := ap.Compile(c, curve, ap_setup.PerpetualPowersOfTauBN254)
 	if err != nil {
 		t.Fatal(err)
 	}
