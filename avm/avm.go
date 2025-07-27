@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/giuliop/HermesVault-smartcontracts/deployed"
+	"github.com/joe-p/Mithras-Protocol/deployed"
 
 	"github.com/algorand/go-algorand-sdk/v2/abi"
 	"github.com/algorand/go-algorand-sdk/v2/client/v2/algod"

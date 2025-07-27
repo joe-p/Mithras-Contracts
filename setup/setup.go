@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/giuliop/HermesVault-smartcontracts/avm"
-	"github.com/giuliop/HermesVault-smartcontracts/config"
-	"github.com/giuliop/HermesVault-smartcontracts/deployed"
+	"github.com/joe-p/Mithras-Protocol/avm"
+	"github.com/joe-p/Mithras-Protocol/config"
+	"github.com/joe-p/Mithras-Protocol/deployed"
 
 	"github.com/consensys/gnark-crypto/ecc"
 

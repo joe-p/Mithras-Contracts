@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/giuliop/HermesVault-smartcontracts/config"
+	"github.com/joe-p/Mithras-Protocol/config"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"

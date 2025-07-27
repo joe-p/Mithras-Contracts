@@ -9,10 +9,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/giuliop/HermesVault-smartcontracts/avm"
-	"github.com/giuliop/HermesVault-smartcontracts/config"
-	"github.com/giuliop/HermesVault-smartcontracts/deployed"
-	"github.com/giuliop/HermesVault-smartcontracts/setup"
+	"github.com/joe-p/Mithras-Protocol/avm"
+	"github.com/joe-p/Mithras-Protocol/config"
+	"github.com/joe-p/Mithras-Protocol/deployed"
+	"github.com/joe-p/Mithras-Protocol/setup"
 
 	"github.com/algorand/go-algorand-sdk/v2/crypto"
 	"github.com/algorand/go-algorand-sdk/v2/transaction"

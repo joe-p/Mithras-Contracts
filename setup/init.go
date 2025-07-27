@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/giuliop/HermesVault-smartcontracts/circuits"
+	"github.com/joe-p/Mithras-Protocol/circuits"
 
 	"github.com/consensys/gnark/frontend"
 )

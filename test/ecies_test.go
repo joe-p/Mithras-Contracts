@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
-	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
+	"github.com/joe-p/Mithras-Protocol/encrypt"
 )
 
 func TestECIESEncryptDecrypt(t *testing.T) {

@@ -15,10 +15,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
-	"github.com/giuliop/HermesVault-smartcontracts/avm"
-	"github.com/giuliop/HermesVault-smartcontracts/circuits"
-	"github.com/giuliop/HermesVault-smartcontracts/config"
-	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
+	"github.com/joe-p/Mithras-Protocol/avm"
+	"github.com/joe-p/Mithras-Protocol/circuits"
+	"github.com/joe-p/Mithras-Protocol/config"
+	"github.com/joe-p/Mithras-Protocol/encrypt"
 
 	"github.com/algorand/go-algorand-sdk/v2/abi"
 	"github.com/algorand/go-algorand-sdk/v2/client/v2/common/models"

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/giuliop/HermesVault-smartcontracts/config"
-	"github.com/giuliop/HermesVault-smartcontracts/setup"
+	"github.com/joe-p/Mithras-Protocol/config"
+	"github.com/joe-p/Mithras-Protocol/setup"
 
 	"github.com/algorand/go-algorand-sdk/v2/crypto"
 	"github.com/giuliop/algoplonk/utils"
