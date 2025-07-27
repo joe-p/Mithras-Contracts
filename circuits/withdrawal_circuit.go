@@ -3,7 +3,7 @@ package circuits
 import (
 	"runtime"
 
-	"github.com/giuliop/HermesVault-smartcontracts/config"
+	"github.com/joe-p/Mithras-Protocol/config"
 
 	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"

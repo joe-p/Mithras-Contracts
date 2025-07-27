@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/giuliop/HermesVault-smartcontracts/deployed"
-	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
+	"github.com/joe-p/Mithras-Protocol/deployed"
+	"github.com/joe-p/Mithras-Protocol/encrypt"
 
 	"github.com/algorand/go-algorand-sdk/v2/client/kmd"
 	"github.com/algorand/go-algorand-sdk/v2/crypto"

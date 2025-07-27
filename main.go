@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/giuliop/HermesVault-smartcontracts/deployed"
-	"github.com/giuliop/HermesVault-smartcontracts/setup"
+	"github.com/joe-p/Mithras-Protocol/deployed"
+	"github.com/joe-p/Mithras-Protocol/setup"
 )
 
 func main() {

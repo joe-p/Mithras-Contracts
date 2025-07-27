@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/giuliop/HermesVault-smartcontracts/mimc"
+	"github.com/joe-p/Mithras-Protocol/mimc"
 
 	"github.com/consensys/gnark-crypto/ecc"
 )

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/giuliop/HermesVault-smartcontracts/config"
+	"github.com/joe-p/Mithras-Protocol/config"
 )
 
 type Tree struct {

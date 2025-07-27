@@ -1,4 +1,4 @@
-module github.com/giuliop/HermesVault-smartcontracts
+module github.com/joe-p/Mithras-Protocol
 
 go 1.23.0
 
