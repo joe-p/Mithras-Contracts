@@ -63,6 +63,7 @@ type EncryptedNote struct {
 	EncryptedOutput []byte
 	EncryptedInput  []byte
 	EncryptedAmount []byte
+	EphemeralPubkey []byte
 }
 
 func (f *Frontend) MakeNullifier(note *Note) []byte {
@@ -236,6 +237,7 @@ func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputP
 		EncryptedOutput: encryptedOutput,
 		EncryptedInput:  encryptedInput,
 		EncryptedAmount: encryptedAmount,
+		EphemeralPubkey: ephemeralPriv.PublicKey.Bytes(),
 	}
 
 	return note, encryptedNote
@@ -251,25 +253,28 @@ func uint64ToBytes32(amount uint64) []byte {
 // RecoverNote attempts to decrypt and reconstruct a note from encrypted data
 // using the provided private key. Returns a Note if successful.
 func (f *Frontend) RecoverNote(encryptedNote *EncryptedNote, privkey eddsa.PrivateKey, insertedIndex int) (*Note, error) {
+	var ephemeralPub eddsa.PublicKey
+	ephemeralPub.SetBytes(encryptedNote.EphemeralPubkey)
+
 	// Decrypt k and r using the private key
-	k, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedK, privkey)
+	k, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedK, ephemeralPub, privkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt k: %v", err)
 	}
 
-	r, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedR, privkey)
+	r, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedR, ephemeralPub, privkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt r: %v", err)
 	}
 
 	// Decrypt the output public key
-	outputPubkeyBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedOutput, privkey)
+	outputPubkeyBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedOutput, ephemeralPub, privkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt output: %v", err)
 	}
 
 	// Decrypt the amount
-	amountBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedAmount, privkey)
+	amountBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedAmount, ephemeralPub, privkey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt amount: %v", err)
 	}
@@ -470,7 +475,7 @@ type WithdrawalOpts struct {
 	fee          uint64
 	noChange     bool
 	fromNote     *Note
-	spendAmount uint64
+	spendAmount  uint64
 }
 
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
@@ -540,29 +545,29 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 	outputY := outputPubkey.A.Y.Bytes()
 
 	assignment := &circuits.WithdrawalCircuit{
-		WithdrawalAddress:  recipient[:],
-		WithdrawalAmount: withdrawalAmount,
-		Fee:        fee,
+		WithdrawalAddress: recipient[:],
+		WithdrawalAmount:  withdrawalAmount,
+		Fee:               fee,
 		UnspentCommitment: unspentCommitment,
-		Nullifier:  nullifier,
-		Root:       root,
-		SpendableK:          fromNote.k,
-		SpendableR:          fromNote.r,
-		SpendableAmount:     fromNote.Amount,
+		Nullifier:         nullifier,
+		Root:              root,
+		SpendableK:        fromNote.k,
+		SpendableR:        fromNote.r,
+		SpendableAmount:   fromNote.Amount,
 		UnspentAmount:     unspentNote.Amount,
-		UnspentK:         unspentNote.k,
-		UnspentR:         unspentNote.r,
-		SpendableIndex:      index,
-		SpendablePath:       path,
-		SpenderX:     inputX[:],
-		SpenderY:     inputY[:],
-		Signature:  circuitSig,
-		OutputX:    outputX[:],
-		OutputY:    outputY[:],
-		SpentAmount:   0, // TODO: test spent amount
-		SpentK:       spendNote.k,
-		SpentR:       spendNote.r,
-		SpentCommitment: spendCommitment,
+		UnspentK:          unspentNote.k,
+		UnspentR:          unspentNote.r,
+		SpendableIndex:    index,
+		SpendablePath:     path,
+		SpenderX:          inputX[:],
+		SpenderY:          inputY[:],
+		Signature:         circuitSig,
+		OutputX:           outputX[:],
+		OutputY:           outputY[:],
+		SpentAmount:       0, // TODO: test spent amount
+		SpentK:            spendNote.k,
+		SpentR:            spendNote.r,
+		SpentCommitment:   spendCommitment,
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {

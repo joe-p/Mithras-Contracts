@@ -32,7 +32,7 @@ func TestECIESEncryptDecrypt(t *testing.T) {
 	}
 
 	// Decrypt
-	decrypted, err := encrypt.ECIESDecrypt(encrypted, *privKey)
+	decrypted, err := encrypt.ECIESDecrypt(encrypted, ephemeralPriv.PublicKey, *privKey)
 	if err != nil {
 		t.Fatalf("Failed to decrypt: %v", err)
 	}

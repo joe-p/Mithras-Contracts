@@ -156,31 +156,12 @@ func ECIESEncrypt(data []byte, pubkey eddsa.PublicKey, ephemeralPub eddsa.Public
 		return nil, fmt.Errorf("encryption failed: %v", err)
 	}
 
-	// Prepend ephemeral public key to encrypted data
-	ephemeralPubBytes := ephemeralPub.Bytes()
-	result := append(ephemeralPubBytes, encrypted...)
-
-	return result, nil
+	return encrypted, nil
 }
 
 // ECIESDecrypt decrypts data using ECIES with the given EdDSA private key
-func ECIESDecrypt(encryptedData []byte, privkey eddsa.PrivateKey) ([]byte, error) {
-	const pubKeySize = 32
-
-	if len(encryptedData) < pubKeySize {
-		return nil, fmt.Errorf("encrypted data too short")
-	}
-
-	// Extract ephemeral public key
-	ephemeralPubBytes := encryptedData[:pubKeySize]
-	encrypted := encryptedData[pubKeySize:]
-
-	// Reconstruct ephemeral public key
-	var ephemeralPub eddsa.PublicKey
-	_, err := ephemeralPub.SetBytes(ephemeralPubBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ephemeral public key: %v", err)
-	}
+func ECIESDecrypt(encryptedData []byte, ephemeralPub eddsa.PublicKey, privkey eddsa.PrivateKey) ([]byte, error) {
+	pubKeySize := 32
 
 	// Extract scalar from private key
 	const sizeFr = 32
@@ -206,7 +187,8 @@ func ECIESDecrypt(encryptedData []byte, privkey eddsa.PrivateKey) ([]byte, error
 	copy(keyArray[:], key)
 
 	// Decrypt the data
-	decrypted, err := decryptRaw(encrypted, &keyArray)
+	decrypted, err := decryptRaw(encryptedData, &keyArray)
+
 	if err != nil {
 		return nil, fmt.Errorf("decryption failed: %v", err)
 	}
