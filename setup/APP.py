@@ -145,6 +145,7 @@ class APP(py.ARC4Contract, avm_version=11):
         recipient: Account,
         fee_recipient: Account,
         no_change: Bool,
+        sender_address: Address,
     ) -> tuple[UInt64, Bytes32]:  # return commitment leaf index and tree root
         """Withdraw funds.
 
@@ -171,10 +172,23 @@ class APP(py.ARC4Contract, avm_version=11):
         root = public_inputs[4].copy()
         unspent_commitment = public_inputs[5].copy()
         spend_commitment = public_inputs[6].copy()
+        spender_address_mod = public_inputs[7].copy()
+
+        if spender_address != Global.zero_address:
+            assert sender_address_mod = Bytes32.from_bytes(
+                py.op.bzero(32) | (py.BigUInt.from_bytes(
+                    sender_address.bytes) % CURVE_MOD).bytes
+            ), "Sender address mod does not match"
+
+            # If the spender address is not zero, check the transaction is signed by it
+            assert Txn.sender == Address.from_bytes(spender_address), (
+                "Transaction is not signed by the spender address"
+            )
 
         # Check mod of recipient address matches recipient_mod
         assert recipient_mod == Bytes32.from_bytes(
-            py.op.bzero(32) | (py.BigUInt.from_bytes(recipient.bytes) % CURVE_MOD).bytes
+            py.op.bzero(32) | (py.BigUInt.from_bytes(
+                recipient.bytes) % CURVE_MOD).bytes
         ), "Recipient address mod does not match"
 
         # Verify the proof was validated by the withdrawal verifier logicsig
@@ -282,10 +296,11 @@ class APP(py.ARC4Contract, avm_version=11):
                 left = currentHash
                 right = zero_hashes[i].bytes
             else:
-                left = subtree[i * 32 : (i + 1) * 32]
+                left = subtree[i * 32: (i + 1) * 32]
                 right = currentHash
 
-            currentHash = op.mimc(op.MiMCConfigurations.BN254Mp110, left + right)
+            currentHash = op.mimc(
+                op.MiMCConfigurations.BN254Mp110, left + right)
             index = index >> 1
 
         op.Box.replace(b"subtree", 0, subtree)
@@ -298,7 +313,7 @@ def valid_root(root: Bytes32) -> bool:
     """Check if the root is included in the last saved roots"""
     roots, exist = op.Box.get(b"roots")
     for i in urange(ROOTS_COUNT):
-        r = roots[i * 32 : (i + 1) * 32]
+        r = roots[i * 32: (i + 1) * 32]
         if r == root.bytes:
             return True
     return False

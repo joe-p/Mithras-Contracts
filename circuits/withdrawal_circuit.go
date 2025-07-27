@@ -32,6 +32,9 @@ type WithdrawalCircuit struct {
 	UnspentCommitment frontend.Variable `gnark:",public"`
 	SpentCommitment   frontend.Variable `gnark:",public"`
 
+	SpenderAddess frontend.Variable `gnark:",public"`
+	OutputAddress frontend.Variable `gnark:",public"`
+
 	// X and Y for spender pubkey
 	SpenderX frontend.Variable
 	SpenderY frontend.Variable
@@ -58,7 +61,26 @@ type WithdrawalCircuit struct {
 	UnspentR      frontend.Variable
 }
 
+// validateAddressXYConstraint validates that if address is not zero, then X and Y must be zero
+func validateAddressXYConstraint(api frontend.API, address, x, y frontend.Variable) {
+	addressIsZero := api.IsZero(address)
+	xIsZero := api.IsZero(x)
+	yIsZero := api.IsZero(y)
+
+	// If Address != 0, then X == 0 AND Y == 0
+	// This is equivalent to: Address == 0 OR (X == 0 AND Y == 0)
+	xyBothZero := api.And(xIsZero, yIsZero)
+	constraint := api.Or(addressIsZero, xyBothZero)
+	api.AssertIsEqual(constraint, 1)
+}
+
 func (c *WithdrawalCircuit) Define(api frontend.API) error {
+	// Validate spender address and XY constraints
+	validateAddressXYConstraint(api, c.SpenderAddess, c.SpenderX, c.SpenderY)
+
+	// Validate output address and XY constraints
+	validateAddressXYConstraint(api, c.OutputAddress, c.OutputX, c.OutputY)
+
 	mimc, _ := mimc.NewMiMC(api)
 
 	// hash(Amount,K) == Nullifier
