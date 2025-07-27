@@ -18,7 +18,7 @@ import (
 	"github.com/algorand/go-algorand-sdk/v2/transaction"
 	"github.com/algorand/go-algorand-sdk/v2/types"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 )
 
 var (

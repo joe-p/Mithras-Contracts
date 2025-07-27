@@ -16,7 +16,7 @@ import (
 )
 
 const MerkleTreeLevels = 16
-const curve = ecc.BN254
+const curve = ecc.BLS12_381
 
 type MerkleCircuit struct {
 	Root  frontend.Variable `gnark:",public"`
@@ -38,7 +38,7 @@ func (c *MerkleCircuit) Define(api frontend.API) error {
 
 func TestMerkle(t *testing.T) {
 	c := &MerkleCircuit{}
-	cc, err := ap.Compile(c, curve, ap_setup.PerpetualPowersOfTauBN254)
+	cc, err := ap.Compile(c, curve, ap_setup.DuskBLS12381)
 	if err != nil {
 		t.Fatal(err)
 	}

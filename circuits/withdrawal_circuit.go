@@ -71,7 +71,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	verifyHashCommitment(api, &mimc, c.SpentCommitment, 2, c.SpentAmount, c.SpentK, c.SpentR, c.OutputX, c.OutputY)
 
 	// Verify the the Input pubkey signed the withdrawal commitment
-	curve, err := twistededwards.NewEdCurve(api, tedwards.BN254)
+	curve, err := twistededwards.NewEdCurve(api, tedwards.BLS12_381)
 	if err != nil {
 		return err
 	}

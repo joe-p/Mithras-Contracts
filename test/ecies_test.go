@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
 )
 
