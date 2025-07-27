@@ -1,6 +1,6 @@
 # Mithras Protocol
 
-The Mithras Protocol is a privacy-focused UTXO protocol built on top of Algorand via smart contracts. This repo contains the smart contracts and is a fork of the Hermes Vault mixer contracts. The primary use case in mind is cash-based assistance which requires the following properties:
+The Mithras Protocol is a privacy-focused UTXO protocol built on top of Algorand via smart contracts. It is originally forked from [Hermes Vault](https://github.com/giuliop/HermesVault-smartcontracts). This repo contains the contracts and circuits for the protocol. The primary use case in mind is cash-based assistance which requires the following properties:
 
 * Initial deposits should be auditable (i.e an NGO can prove they dispersed funds)
 * Usage of funds after deposit should be private
@@ -12,19 +12,15 @@ This protocol, however, could also be used for any other use case that requires 
 
 ### The Trust Model
 
-Hermes Vault is intended to be a funds mixer, similar to tornado cash. In a mixer, it is expected that the user that deposits funds is the same user that eventually withdrawals them. This means they must generate secrets when depositing (K, R) and then keep them safe in order to withdraw the funds later. Anyone with K, R can withdraw the funds, so it is important that these secrets are kept safe. Mithras, however, uses asymmetric cryptography to only authorize spending via a EdDSA  signature. K and R are still used to preserve privacy, but if they do end up being leaked they cannot be used to withdraw funds.
-
-### User Experience
-
-Hermes Vault depends on a secret note (containing K, R) to be generated and saved by the user. If the user loses this note, they will not be able to withdraw their funds. Mithras Protocol, however, does not require the user to save a secret note. Instead, the K and R are encrypted using ECIES and stored on-chain. The only private key that can decrypt these secrets is the intended receiver's private key. This means that the user does not have to keep track of yet another secret note, and instead just need to keep their private key safe (like they would with any other crypto wallet). The keys used for Algorand transactions and Mithras transactions would ideally be derived from the same master seed, so the user only has to keep track of one seed phrase.
+Mithras uses asymmetric cryptography to only authorize spending via an EdDSA signature. This means that it is impossible for the sender to revoke their funds or for a third party to steal the funds without the receiver's private key. The privacy of the protocol is achieved by using zero-knowledge proofs. Since Mithras uses Plonk circuits, a "trusted setup" is required to enable true privacy. The trusted setup Mithras uses is the same trusted setup used by the [Dusk network](https://github.com/dusk-network/trusted-setup/tree/385f054c417c12d0d6d54e9f6a88ecd0bd95efb8), which is an extension of the [Zcash trusted setup](https://github.com/ZcashFoundation/powersoftau-attestations/tree/ec0ca873f5b69560ce89df32496f7f150083456a). In total, there were 103 participants in the trusted setup ceremony. In order to trust that the trusted setup is secure, one must trust that **at least** one participant in the ceremony acted honestly.
 
 ### Private Information
 
-When making a deposit into the protocol, the Algorand account sending the deposit transaction and the amount being deposited is public (necessarily, because Algorand does not support private transactions at the protocol level). Once the deposit is made, however, any transaction made within the protocol are completely private. An outside observer cannot determine the Sender, Receiver, or Amount of any transaction made within the protocol. The exception is when funds leave the protocol. Similar to deposits, once funds leave the protocol the amount and receiving Algorand address are public.
+When making a deposit into the protocol, the Algorand account sending the deposit transaction and the amount being deposited is public (necessarily, because Algorand does not support private transactions at the protocol level). Once the deposit is made, however, any transactions made within the protocol are completely private. An outside observer cannot determine the Sender, Receiver, or Amount of any transaction made within the protocol. The exception is when funds leave the protocol. Similar to deposits, once funds leave the protocol the amount and receiving Algorand address are public.
 
 ### Reading Transactions
 
-Since the sender, receiver, and amount of Mithras transactions are kept private, one might wonder how a user can know when they received funds or how much funds they have available. For every Mitrhas transaction, the receiver's public key (their baby jubjub public key) and the amount is included in the transaction, but encrypted. The encryption is performed using ECIES with the receivers public key. This means that the receiver can go over each transaction in the protocol, decrypt the public key, and then check if it matches their own. If it does, they can then decrypt the amount and see how much funds they have available.
+Since the sender, receiver, and amount of Mithras transactions are kept private, one might wonder how a user can know when they received funds or how much funds they have available. Every Mithras transaction includes the sender, receiver, and amount are encrypted in the Algorand note field. The encryption is performed using ECIES with the receivers public key. This means that the receiver can go over each transaction in the protocol, decrypt the public key, and then check if it matches their own. If it does, they can then decrypt the amount and sender.
 
 ## TODO
 
