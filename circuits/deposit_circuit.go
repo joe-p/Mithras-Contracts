@@ -31,21 +31,7 @@ func (c *DepositCircuit) Define(api frontend.API) error {
 	mimc, _ := mimc.NewMiMC(api)
 
 	// hash(hash(Amount, K, R, OutputX, OutputY)) == Commitment
-	mimc.Write(c.Amount)
-	mimc.Write(c.K)
-	mimc.Write(c.R)
-
-	mimc.Write(c.OutputX)
-	mimc.Write(c.OutputY)
-
-	h := mimc.Sum()
-
-	mimc.Reset()
-
-	mimc.Write(h)
-	api.AssertIsEqual(c.Commitment, mimc.Sum())
-
-	mimc.Reset()
+	verifyHashCommitment(api, &mimc, c.Commitment, 2, c.Amount, c.K, c.R, c.OutputX, c.OutputY)
 
 	return nil
 }

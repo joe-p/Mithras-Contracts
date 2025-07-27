@@ -62,35 +62,13 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc, _ := mimc.NewMiMC(api)
 
 	// hash(Amount,K) == Nullifier
-	mimc.Write(c.SpendableAmount)
-	mimc.Write(c.SpendableK)
-	api.AssertIsEqual(c.Nullifier, mimc.Sum())
-
-	mimc.Reset()
+	verifyHashCommitment(api, &mimc, c.Nullifier, 1, c.SpendableAmount, c.SpendableK)
 
 	// hash(hash(UnspentAmount, UnspentK, UnspentR, SpenderX, SpenderY)) == UnspentCommitment
-	mimc.Write(c.UnspentAmount)
-	mimc.Write(c.UnspentK)
-	mimc.Write(c.UnspentR)
-	mimc.Write(c.SpenderX)
-	mimc.Write(c.SpenderY)
-	h := mimc.Sum()
-	mimc.Reset()
-	mimc.Write(h)
-	api.AssertIsEqual(c.UnspentCommitment, mimc.Sum())
-	mimc.Reset()
+	verifyHashCommitment(api, &mimc, c.UnspentCommitment, 2, c.UnspentAmount, c.UnspentK, c.UnspentR, c.SpenderX, c.SpenderY)
 
 	// hash(hash(SpendAmount, SpendK, SpendR, OutputX, OutputY)) == SpendCommitment
-	mimc.Write(c.SpentAmount)
-	mimc.Write(c.SpentK)
-	mimc.Write(c.SpentR)
-	mimc.Write(c.OutputX)
-	mimc.Write(c.OutputY)
-	h = mimc.Sum()
-	mimc.Reset()
-	mimc.Write(h)
-	api.AssertIsEqual(c.SpentCommitment, mimc.Sum())
-	mimc.Reset()
+	verifyHashCommitment(api, &mimc, c.SpentCommitment, 2, c.SpentAmount, c.SpentK, c.SpentR, c.OutputX, c.OutputY)
 
 	// Verify the the Input pubkey signed the withdrawal commitment
 	curve, err := twistededwards.NewEdCurve(api, tedwards.BN254)
@@ -111,14 +89,7 @@ func (c *WithdrawalCircuit) Define(api frontend.API) error {
 	mimc.Reset()
 
 	// Path[0] == hash(SpendableAmount, SpendableK, SpendableR, SpenderX, SpenderY)
-	mimc.Write(c.SpendableAmount)
-	mimc.Write(c.SpendableK)
-	mimc.Write(c.SpendableR)
-	mimc.Write(c.SpenderX)
-	mimc.Write(c.SpenderY)
-	api.AssertIsEqual(c.SpendablePath[0], mimc.Sum())
-
-	mimc.Reset()
+	verifyHashCommitment(api, &mimc, c.SpendablePath[0], 1, c.SpendableAmount, c.SpendableK, c.SpendableR, c.SpenderX, c.SpenderY)
 
 	// SpendableAmount, SpendableK is in the merkle tree at index
 	mp := merkle.MerkleProof{
