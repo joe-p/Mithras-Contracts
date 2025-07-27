@@ -34,8 +34,10 @@ const (
 	DepositOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 1900
 
 	// fees needed for a withdrawal transaction group
-	WithdrawalMinFeeMultiplier = 60
-	WithdrawalOpcodeBudgetOpUp = 1100*MerkleTreeLevels + 4000
+	// TODO: When adding the spend commitment (so now two leafs added in contract), I increased these values by even multiples
+	// We should see what the true min required values are
+	WithdrawalMinFeeMultiplier = 180
+	WithdrawalOpcodeBudgetOpUp = 3*1100*MerkleTreeLevels + 4000
 
 	// APP address MBR after initialization: 1_159_400 microalgos
 	InitialMbr = 100_000 + // base

@@ -54,7 +54,12 @@ func TestMerkle(t *testing.T) {
 
 	f := Frontend{Tree: tree}
 
-	note := f.NewNote(100)
+	privkey, err := generateTestKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	note, _ := f.NewNote(uint64(100), *privkey, privkey.PublicKey)
 	index := tree.addLeaf(note.commitment)
 	note.insertedIndex = index
 

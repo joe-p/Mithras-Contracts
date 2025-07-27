@@ -1,138 +1,49 @@
-# [Hermes Vault](https://github.com/giuliop/HermesVault)
-## Protocol overview
+# Mithras Protocol
 
-Described [here](https://github.com/giuliop/HermesVault#application-overview).
+The Mithras Protocol is a privacy-focused UTXO protocol built on top of Algorand via smart contracts. This repo contains the smart contracts and is a fork of the Hermes Vault mixer contracts. The primary use case in mind is cash-based assistance which requires the following properties:
 
-## Smart Contracts Implementation
+* Initial deposits should be auditable (i.e an NGO can prove they dispersed funds)
+* Usage of funds after deposit should be private
+* Support for ASAs
 
-There are two zk-circuits, `deposit_circuit` and `withdrawal_circuit`, described below.
+This protocol, however, could also be used for any other use case that requires private transactions on Algorand.
 
-The protocol is implemented onchain by the following components:
-  - a main smart contract (***APP***) with the application logic
-  - a deposit verifier smart signature (***DV***) to validate deposits' zk-proofs
-  - a withdrawal verifier smart signature (***WV***) to validate withdrawals' zk-proofs
-  - a treasury smart signature (***TSS***) to optionally sign withdrawal transaction
+## Overview
 
-The deposit and change receipts are stored in a merkle tree managed by ***APP***
+### The Trust Model
 
-Users can make deposits and withdrawals as described below.
+Hermes Vault is intended to be a funds mixer, similar to tornado cash. In a mixer, it is expected that the user that deposits funds is the same user that eventually withdrawals them. This means they must generate secrets when depositing (K, R) and then keep them safe in order to withdraw the funds later. Anyone with K, R can withdraw the funds, so it is important that these secrets are kept safe. Mithras, however, uses asymmetric cryptography to only authorize spending via a EdDSA  signature. K and R are still used to preserve privacy, but if they do end up being leaked they cannot be used to withdraw funds.
 
-### Deposit
-The user generates random K,R and computes  
-`Commitment = hash(hash(Amount, K, R))`
+### User Experience
 
-The user generates a proof using `deposit_circuit` with
-```
-Public inputs:  Amount
-                Commitment
+Hermes Vault depends on a secret note (containing K, R) to be generated and saved by the user. If the user loses this note, they will not be able to withdraw their funds. Mithras Protocol, however, does not require the user to save a secret note. Instead, the K and R are encrypted using ECIES and stored on-chain. The only private key that can decrypt these secrets is the intended receiver's private key. This means that the user does not have to keep track of yet another secret note, and instead just need to keep their private key safe (like they would with any other crypto wallet). The keys used for Algorand transactions and Mithras transactions would ideally be derived from the same master seed, so the user only has to keep track of one seed phrase.
 
-Private inputs: K
-                R
-```
-The proof proves that  
-```
-Commitment = hash(hash(Amount,K,R))
-```
+### Private Information
 
-The user sends a transaction group with at least two transactions:
-1. An app call to ***APP***'s deposit method signed by ***DV*** with args `(proof, public inputs, sender)`
-2. A payment of `Amount` tokens to ***APP*** from `sender`
+When making a deposit into the protocol, the Algorand account sending the deposit transaction and the amount being deposited is public (necessarily, because Algorand does not support private transactions at the protocol level). Once the deposit is made, however, any transaction made within the protocol are completely private. An outside observer cannot determine the Sender, Receiver, or Amount of any transaction made within the protocol. The exception is when funds leave the protocol. Similar to deposits, once funds leave the protocol the amount and receiving Algorand address are public.
 
-If the proof is invalid the ***DV*** will reject and the transaction group fail
+### Reading Transactions
 
-***APP*** verifies that
-* The calling transaction is signed by ***DV***
-* The next group transaction is a payment of `Amount` to ***APP*** from `sender`
-* Amount is at least `1 algo` (minimum deposit requirement)
+Since the sender, receiver, and amount of Mithras transactions are kept private, one might wonder how a user can know when they received funds or how much funds they have available. For every Mitrhas transaction, the receiver's public key (their baby jubjub public key) and the amount is included in the transaction, but encrypted. The encryption is performed using ECIES with the receivers public key. This means that the receiver can go over each transaction in the protocol, decrypt the public key, and then check if it matches their own. If it does, they can then decrypt the amount and see how much funds they have available.
 
-If all is verified, ***APP*** will inserts the deposit in the merkle tree
+## TODO
 
-### Withdraw
-The user generates random `K2`,`R2` and a proof using `withdraw_circuit` with
-```
-Public inputs:  Recipient  -> address for withdrawal
-                Withdrawal -> amount for withdrawal
-                Fee        -> amount for protocol expenses
-                Commitment -> hash(hash(Change, K2, R2))
-                Nullifier  -> hash(Amount, K)
-                Root       -> of merkle tree
+### Support Sending to an Algorand Address
 
-Private inputs: K          -> old deposit secret K
-                R          -> old deposit secret R
-                Amount     -> old deposit amount
-                Change     -> change tokens: Amount - Withdrawal - Fee
-                K2         -> change (new deposit) secret value
-                R2         -> change (new deposit) secret value
-                Index      -> of (Amount,K,R) in merkle tree (old deposit)
-                Path       -> Merkle proof for (Amount, K, R) at Index with Root
-```
+Currently every transfer/withdrawal must specify a Mithras public key as the receiver, which is different from Algorand addresses. If the circuit allowed either a Mithras public key OR an Algorand address, then it would be possible to send funds directly to an Algorand address without knowing their Mithras public key. This also allows Mithras transactions to inherit some of the signing-related properties of Algorand, such as lsigs, msig, and rekeys. This would also enable app accounts to use the Mithras protocol if we use an app verifier instead of lsig (which is very expensive, but possible with AlgoPlonk).
 
-The merkle Path starts with value `(Amount, K,R)` not hashed, then its
-sibling, then all the parent nodes' siblings up to, but excluding the root.
+This would require the address executing the withdrawal to be a public input to the withdrawal circuit. The circuit would skip the EdDSA signature verification if an address is provided and verification would be done by the smart contract instead.
 
-The proof proves that:
-```
-Nullifier  == hash(Amount, K)
-Commitment == hash(hash(Change, K2, R2))
-Change     == Amount - Withdrawal - Fee
-Change, Amount, Withdrawal, Fee are all >= 0
-Amount,K are the initial part of Path[0] (which is Amount,K,R)
-Path is a valid merkle proof for value (Amount,K,R) at Index with Root
-```
+### Switch to BLS12-381
 
-The user sends:
-1. An app call to ***APP***'s withdraw method signed by ***WV*** with args (proof, public inputs, recipient, fee_recipient, no_change)
-2. (optionally) an app call to ***APP***'s noop method signed by the ***TSS*** to cover the transaction fees
+Currently the circuit uses BN254 and the baby jubjub curve. We should switch to BLS12-381 and the Bandersnatch curve which is a more modern curve that offers better security. 
 
-If the proof is invalid the ***DV*** will reject and the transaction fail
+This is mainly blocked by https://github.com/giuliop/AlgoPlonk/pull/2. Once AlgoPlonk supports a larger BLS12-381 setup, we should be able to seamlessly switch to it.
 
-***APP*** verifies that
-1. `Nullifier` has not been previously spent
-2. `Root` is a valid root
-3. `Fee` is at least 0.0153 algo (`nullifier_mbr`) to cover nullifier box storage 
+### ASA Support
 
-If all is verified, ***APP***
-- adds `Nullifier` to the list of used nullifiers
-- sends `Withdrawal` tokens to the `Recipient` minus optional extra network fees
-  as described below
-- sends `Fee - nullifier_mbr` algos to `fee_recipient` (e.g., the ***TSS***) so that it can cover the transaction fees (as described below)
-- inserts `Change` in the merkle tree
+This should be relatively straightforward to implement and just requires a commitment to the ASA ID in each transaction. The main challenge is determining how MBR should work.
 
-***TSS*** (if invoked) verifies that
-1. the previous transaction in the group is a call to ***APP***'s withdraw method as per above
-2. the current transaction is an app call to ***APP***'s noop method
+### View Keys
 
-After a successful withdrawal, the user is now able to withdraw `Change` in the future using the new `Commitment` 
-
-If the tree is full, the user can withdraw but no new change can be inserted.
-So if the user withdraws less than the total amount, the change is locked forever in the contract.
-To make sure the user is aware that the tree is full, the withdrawal method accepts a parameter `no-change` that has to be set to true once the tree is full to make withdrawals.
-
-## Other implementation details
-
-### Merkle Tree
-The commitments to the deposits (user deposits or "change" deposits) are stored in a merkle tree on-chain. For storage efficiency, we can store on-chain only the path from the last inserted leaf to the root; this is sufficient to compute the new root on new insertions.
-
-With a 32 level tree which can support 2^32 leaves, that is over 4 billion deposits/changes, and a 32 byte tree node representation, the storage requirement will be 32 * 32 = 1024 bytes, excluding the root.
-
-We maintain on-chain the last 50 roots for user convenience to support concurrent operations, so we need an additional 50 * 32 = 1600 bytes
-
-Note that frontends will need to read from the blockchain all the inserted leaves to compute merkle proofs and build withdrawal transactions.
-
-### Nullifiers
-
-Nullifiers are needed to prevent a deposit to be withdrawn from twice. With a 32 level merkle tree, eventually up to over 4 billion nullifiers need to be stored on-chain (using boxes) and paid by the application through MBR (2500 + 400 * 32 = 15_300 microalgo per nullifier)
-
-### Roots
-
-To avoid a situation where concurrent transactions submit a withdrawal zk-proof using the same recent tree root and only the first can succeed, the application maintains a list of the last 50 roots and checks withdrawal proofs against them.
-
-### Hash function
-
-We need a zk-friendly hash function to hash the merkle tree nodes and the AVM provides [MiMC](https://developer.algorand.org/docs/get-details/dapps/avm/teal/opcodes/v11/#mimc) for that.
-
-### ZK-cryptography
-The zk scheme used is plonk. The `DVC` and `WVC` are generated by [AlgoPlonk](https://github.com/giuliop/AlgoPlonk) from the circuits' definitions; AlgoPlonk uses [gnark](https://github.com/Consensys/gnark) for circuit compilation and for proof generation and can be used by frontends for the latter.
-
-
-AlgoPlonk offers a [trusted setup](https://github.com/giuliop/AlgoPlonk#trusted-setup) for both curves BN254 and BLS12-381 but only the BN254 setup is large enough to support the withdrawal circuit at the moment, so we use curve BN254.
+Currently an outside observer cannot determine the details of transactions without knowing all the secrets. This makes it hard to safely audit transactions and hard to users to determine their spendable balance. To solve this, we can add encrypted secrets to the Algorand transactions. The secrets would be encrypted with ECIES using a public key that is intended for viewing only. 

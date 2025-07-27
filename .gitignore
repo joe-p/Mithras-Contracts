@@ -3,3 +3,4 @@ deployed/devnet
 *.env
 .env.*
 .log
+.dmypy.json

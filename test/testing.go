@@ -11,16 +11,23 @@ import (
 	"log"
 	"math/big"
 
+	bnt "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/ecc/twistededwards"
+
 	"github.com/giuliop/HermesVault-smartcontracts/avm"
 	"github.com/giuliop/HermesVault-smartcontracts/circuits"
 	"github.com/giuliop/HermesVault-smartcontracts/config"
+	"github.com/giuliop/HermesVault-smartcontracts/encrypt"
 
 	"github.com/algorand/go-algorand-sdk/v2/abi"
 	"github.com/algorand/go-algorand-sdk/v2/client/v2/common/models"
 	"github.com/algorand/go-algorand-sdk/v2/crypto"
 	"github.com/algorand/go-algorand-sdk/v2/transaction"
 	"github.com/algorand/go-algorand-sdk/v2/types"
+	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
+	sigEddsa "github.com/consensys/gnark/std/signature/eddsa"
 	ap "github.com/giuliop/algoplonk"
 	"github.com/giuliop/algoplonk/utils"
 )
@@ -45,7 +52,30 @@ type Note struct {
 	commitment    []byte
 	k             []byte
 	r             []byte
-	insertedIndex int // -1 if not inserted, leaf index in tree otherwise
+	outputX       []byte // public key x coordinate
+	outputY       []byte // public key y coordinate
+	insertedIndex int    // -1 if not inserted, leaf index in tree otherwise
+}
+
+type EncryptedNote struct {
+	EncryptedK      []byte
+	EncryptedR      []byte
+	EncryptedOutput []byte
+	EncryptedInput  []byte
+	EncryptedAmount []byte
+	EphemeralPubkey []byte
+}
+
+func (n *EncryptedNote) Bytes() []byte {
+	bytes := []byte{}
+	bytes = append(bytes, n.EphemeralPubkey...)
+	bytes = append(bytes, n.EncryptedOutput...)
+	bytes = append(bytes, n.EncryptedInput...)
+	bytes = append(bytes, n.EncryptedAmount...)
+	bytes = append(bytes, n.EncryptedK...)
+	bytes = append(bytes, n.EncryptedR...)
+
+	return bytes
 }
 
 func (f *Frontend) MakeNullifier(note *Note) []byte {
@@ -54,7 +84,7 @@ func (f *Frontend) MakeNullifier(note *Note) []byte {
 
 func (f *Frontend) MakeLeafValue(n *Note) []byte {
 	ab := uint64ToBytes32(n.Amount)
-	h := f.Tree.hashFunc(ab, n.k, n.r)
+	h := f.Tree.hashFunc(ab, n.k, n.r, n.outputX, n.outputY)
 	return h
 }
 
@@ -102,9 +132,12 @@ func NewAppFrontend() *Frontend {
 	}
 }
 
-func (f *Frontend) MakeCommitment(amount uint64, k, r []byte) []byte {
+func (f *Frontend) MakeCommitment(amount uint64, k, r []byte, pubkey eddsa.PublicKey) []byte {
 	ab := uint64ToBytes32(amount)
-	h := f.Tree.hashFunc(ab, k, r)
+	x := pubkey.A.X.Bytes()
+	y := pubkey.A.Y.Bytes()
+
+	h := f.Tree.hashFunc(ab, k, r, x[:], y[:])
 	h = f.Tree.hashFunc(h)
 	return h
 }
@@ -136,17 +169,90 @@ func NewRandomNonce() []byte {
 	return res
 }
 
-func (f *Frontend) NewNote(amount uint64) *Note {
-	k := NewRandomNonce()
-	r := NewRandomNonce()
-	commitment := f.MakeCommitment(amount, k, r)
-	return &Note{
+func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Note, *EncryptedNote) {
+	// Extract scalar from inputPrivKey.Bytes().
+	const pubSize = 32
+	const sizeFr = 32
+	privBytes := inputPrivKey.Bytes()
+	scalarBytes := privBytes[pubSize : pubSize+sizeFr]
+	scalar := new(big.Int).SetBytes(scalarBytes)
+
+	// Compute shared point: scalar * outputPubkey.A.
+	var sharedPoint bnt.PointAffine
+	sharedPoint.ScalarMultiplication(&outputPubkey.A, scalar)
+
+	xBytes := sharedPoint.X.Bytes()
+	yBytes := sharedPoint.Y.Bytes()
+	sharedSecret := f.Tree.hashFunc(xBytes[:], yBytes[:])
+
+	kDomain := make([]byte, 32)
+	rDomain := make([]byte, 32)
+	kDomain[31] = 'k'
+	rDomain[31] = 'r'
+
+	// TODO: Add sender, lv, lease to the K and R hashes
+	k := f.Tree.hashFunc(sharedSecret, kDomain)
+	r := f.Tree.hashFunc(sharedSecret, rDomain)
+
+	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
+
+	// Generate ephemeral key pair for ECIES encryption
+	ephemeralPriv, err := eddsa.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(fmt.Errorf("failed to generate ephemeral key: %v", err))
+	}
+
+	// K, R, output, input, and amount are encrypted using ECIES
+	// In this test, we are using the same pubkey and ephemeralPriv for all encrypted values
+	// In an actual implementation, you could have a separate view key
+	encryptedK, err := encrypt.ECIESEncrypt(k, outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt k: %v", err))
+	}
+
+	encryptedR, err := encrypt.ECIESEncrypt(r, outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt r: %v", err))
+	}
+
+	encryptedOutput, err := encrypt.ECIESEncrypt(outputPubkey.Bytes(), outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt output public key: %v", err))
+	}
+
+	encryptedInput, err := encrypt.ECIESEncrypt(inputPrivKey.PublicKey.Bytes(), outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt input public key: %v", err))
+	}
+
+	encryptedAmount, err := encrypt.ECIESEncrypt(uint64ToBytes32(amount), outputPubkey, ephemeralPriv.PublicKey, *ephemeralPriv)
+	if err != nil {
+		panic(fmt.Errorf("failed to encrypt amount: %v", err))
+	}
+
+	x := outputPubkey.A.X.Bytes()
+	y := outputPubkey.A.Y.Bytes()
+
+	note := &Note{
 		Amount:        amount,
 		commitment:    commitment,
 		k:             k,
 		r:             r,
+		outputX:       x[:],
+		outputY:       y[:],
 		insertedIndex: -1,
 	}
+
+	encryptedNote := &EncryptedNote{
+		EncryptedK:      encryptedK,
+		EncryptedR:      encryptedR,
+		EncryptedOutput: encryptedOutput,
+		EncryptedInput:  encryptedInput,
+		EncryptedAmount: encryptedAmount,
+		EphemeralPubkey: ephemeralPriv.PublicKey.Bytes(),
+	}
+
+	return note, encryptedNote
 }
 
 // uint64ToBytes32 converts a uint64 to a 32 byte array
@@ -156,17 +262,90 @@ func uint64ToBytes32(amount uint64) []byte {
 	return amountBytes
 }
 
+// RecoverNote attempts to decrypt and reconstruct a note from encrypted data
+// using the provided private key. Returns a Note if successful.
+func (f *Frontend) RecoverNote(encryptedNote *EncryptedNote, privkey eddsa.PrivateKey, insertedIndex int) (*Note, error) {
+	var ephemeralPub eddsa.PublicKey
+	ephemeralPub.SetBytes(encryptedNote.EphemeralPubkey)
+
+	// Decrypt k and r using the private key
+	k, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedK, ephemeralPub, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt k: %v", err)
+	}
+
+	r, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedR, ephemeralPub, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt r: %v", err)
+	}
+
+	// Decrypt the output public key
+	outputPubkeyBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedOutput, ephemeralPub, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt output: %v", err)
+	}
+
+	// Decrypt the amount
+	amountBytes, err := encrypt.ECIESDecrypt(encryptedNote.EncryptedAmount, ephemeralPub, privkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt amount: %v", err)
+	}
+
+	// Convert amount bytes to uint64 (stored in last 8 bytes of 32-byte array)
+	amount := binary.BigEndian.Uint64(amountBytes[24:])
+
+	// Reconstruct the public key from bytes
+	var outputPubkey eddsa.PublicKey
+	_, err = outputPubkey.SetBytes(outputPubkeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reconstruct public key: %v", err)
+	}
+
+	// Extract coordinates
+	outputXCoord := outputPubkey.A.X.Bytes()
+	outputYCoord := outputPubkey.A.Y.Bytes()
+
+	// Compute the commitment to verify correctness
+	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
+
+	note := &Note{
+		Amount:        amount,
+		commitment:    commitment,
+		k:             k,
+		r:             r,
+		outputX:       outputXCoord[:],
+		outputY:       outputYCoord[:],
+		insertedIndex: insertedIndex,
+	}
+
+	return note, nil
+}
+
+// TryRecoverNote attempts to recover a note without returning an error.
+// Returns nil if the note cannot be recovered (e.g., wrong private key).
+func (f *Frontend) TryRecoverNote(encryptedNote *EncryptedNote, privkey eddsa.PrivateKey, insertedIndex int) *Note {
+	note, err := f.RecoverNote(encryptedNote, privkey, insertedIndex)
+	if err != nil {
+		return nil
+	}
+	return note
+}
+
 // SendDeposit creates a deposit transaction and sends it to the network
-func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
+func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey eddsa.PublicKey, inputPrivkey eddsa.PrivateKey) (
 	*Deposit, error) {
 
-	note := f.NewNote(amount)
+	note, encryptedNote := f.NewNote(amount, inputPrivkey, outputPubkey)
 
+	x := outputPubkey.A.X.Bytes()
+	y := outputPubkey.A.Y.Bytes()
 	assignment := &circuits.DepositCircuit{
 		Amount:     amount,
 		Commitment: note.commitment,
 		K:          note.k,
 		R:          note.r,
+		OutputX:    x[:],
+		OutputY:    y[:],
 	}
 	verifiedProof, err := f.App.DepositCc.Verify(assignment)
 	if err != nil {
@@ -212,6 +391,7 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64) (
 			{AppID: f.App.Id, Name: []byte("subtree")},
 			{AppID: f.App.Id, Name: []byte("roots")},
 		},
+		Note: encryptedNote.Bytes(),
 	}
 	if err := atc.AddMethodCall(txnParams); err != nil {
 		return nil, fmt.Errorf("failed to add %s method call: %v", DepositMethod, err)
@@ -308,6 +488,7 @@ type WithdrawalOpts struct {
 	fee          uint64
 	noChange     bool
 	fromNote     *Note
+	spendAmount  uint64
 }
 
 // SendWithdrawal creates a withdrawal transaction and sends it to the network.
@@ -316,10 +497,9 @@ type WithdrawalOpts struct {
 // and the TSS used to sign the transaction.
 // If noChange is true, no change will be added to the tree (to be used when the
 // tree is full, otherwise the withdrawal will fail).
-func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
-
+func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Withdrawal, error) {
 	recipient, feeRecipient, feeSigner := opts.recipient, opts.feeRecipient, opts.feeSigner
-	withdrawalAmount, fee := opts.amount, opts.fee
+	withdrawalAmount, spendAmount, fee := opts.amount, opts.spendAmount, opts.fee
 	noChange, fromNote := opts.noChange, opts.fromNote
 
 	if fee == 0 {
@@ -333,9 +513,12 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 		}
 	}
 
-	change := fromNote.Amount - withdrawalAmount - fee
-	changeNote := f.NewNote(change)
-	commitment := changeNote.commitment
+	unspent := fromNote.Amount - withdrawalAmount - fee
+	unspentNote, encryptedUnspentNote := f.NewNote(unspent, *spenderPrivkey, spenderPrivkey.PublicKey)
+	unspentCommitment := unspentNote.commitment
+
+	spendNote, _ := f.NewNote(spendAmount, *spenderPrivkey, outputPubkey)
+	spendCommitment := spendNote.commitment
 
 	if fromNote.insertedIndex == -1 {
 		return nil, fmt.Errorf("note not inserted in the tree")
@@ -359,21 +542,45 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 
 	nullifier := f.MakeNullifier(fromNote)
 
+	hFunc := hash.MIMC_BN254.New()
+
+	sig, err := spenderPrivkey.Sign(unspentCommitment, hFunc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign withdrawal commitment: %v", err)
+	}
+
+	circuitSig := sigEddsa.Signature{}
+	circuitSig.Assign(twistededwards.BN254, sig)
+
+	inputX := spenderPrivkey.PublicKey.A.X.Bytes()
+	inputY := spenderPrivkey.PublicKey.A.Y.Bytes()
+	outputX := outputPubkey.A.X.Bytes()
+	outputY := outputPubkey.A.Y.Bytes()
+
 	assignment := &circuits.WithdrawalCircuit{
-		Recipient:  recipient[:],
-		Withdrawal: withdrawalAmount,
-		Fee:        fee,
-		Commitment: commitment,
-		Nullifier:  nullifier,
-		Root:       root,
-		K:          fromNote.k,
-		R:          fromNote.r,
-		Amount:     fromNote.Amount,
-		Change:     changeNote.Amount,
-		K2:         changeNote.k,
-		R2:         changeNote.r,
-		Index:      index,
-		Path:       path,
+		WithdrawalAddress: recipient[:],
+		WithdrawalAmount:  withdrawalAmount,
+		Fee:               fee,
+		UnspentCommitment: unspentCommitment,
+		Nullifier:         nullifier,
+		Root:              root,
+		SpendableK:        fromNote.k,
+		SpendableR:        fromNote.r,
+		SpendableAmount:   fromNote.Amount,
+		UnspentAmount:     unspentNote.Amount,
+		UnspentK:          unspentNote.k,
+		UnspentR:          unspentNote.r,
+		SpendableIndex:    index,
+		SpendablePath:     path,
+		SpenderX:          inputX[:],
+		SpenderY:          inputY[:],
+		Signature:         circuitSig,
+		OutputX:           outputX[:],
+		OutputY:           outputY[:],
+		SpentAmount:       0, // TODO: test spent amount
+		SpentK:            spendNote.k,
+		SpentR:            spendNote.r,
+		SpentCommitment:   spendCommitment,
 	}
 	verifiedProof, err := f.App.WithdrawalCc.Verify(assignment)
 	if err != nil {
@@ -419,6 +626,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 			{AppID: f.App.Id, Name: []byte("subtree")},
 			{AppID: f.App.Id, Name: []byte("roots")},
 		},
+		Note: encryptedUnspentNote.Bytes(),
 	}
 
 	var atc = transaction.AtomicTransactionComposer{}
@@ -486,13 +694,15 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts) (*Withdrawal, error) {
 		return nil, fmt.Errorf("failed to get method result: %v", err)
 	}
 
-	changeNote.insertedIndex = int(changeIndex)
-	f.Tree.leafHashes = append(f.Tree.leafHashes, changeNote.commitment)
+	unspentNote.insertedIndex = int(changeIndex)
+	f.Tree.leafHashes = append(f.Tree.leafHashes, unspentNote.commitment)
+
+	f.Tree.leafHashes = append(f.Tree.leafHashes, spendNote.commitment)
 
 	w := &Withdrawal{
 		ToAddress: recipient.String(),
 		TxnIds:    res.TxIDs,
-		Note:      changeNote,
+		Note:      unspentNote,
 	}
 
 	f.Withdrawals = append(f.Withdrawals, w)

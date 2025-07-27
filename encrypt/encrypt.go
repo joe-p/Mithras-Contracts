@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"os"
 
+	bnt "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/term"
@@ -119,4 +122,76 @@ func Encrytp(plaintext string) (string, error) {
 	finalData := append(salt, encryptedRaw...)
 	encoded := base64.StdEncoding.EncodeToString(finalData)
 	return encoded, nil
+}
+
+// ECIESEncrypt encrypts data using ECIES with the given EdDSA public key and ephemeral public key
+func ECIESEncrypt(data []byte, pubkey eddsa.PublicKey, ephemeralPub eddsa.PublicKey, ephemeralPriv eddsa.PrivateKey) ([]byte, error) {
+	// Extract scalar from ephemeral private key
+	const pubSize = 32
+	const sizeFr = 32
+	privBytes := ephemeralPriv.Bytes()
+	scalarBytes := privBytes[pubSize : pubSize+sizeFr]
+	scalar := new(big.Int).SetBytes(scalarBytes)
+
+	// Compute shared point: scalar * pubkey.A
+	var sharedPoint bnt.PointAffine
+	sharedPoint.ScalarMultiplication(&pubkey.A, scalar)
+
+	// Derive encryption key from shared point
+	xBytes := sharedPoint.X.Bytes()
+	yBytes := sharedPoint.Y.Bytes()
+
+	// Use scrypt to derive a 32-byte key from the shared secret
+	sharedSecret := append(xBytes[:], yBytes[:]...)
+	key, err := scrypt.Key(sharedSecret, []byte("ecies"), 32768, 8, 1, 32)
+	if err != nil {
+		return nil, fmt.Errorf("key derivation failed: %v", err)
+	}
+	var keyArray [32]byte
+	copy(keyArray[:], key)
+
+	// Encrypt the data
+	encrypted, err := encryptRaw(data, &keyArray)
+	if err != nil {
+		return nil, fmt.Errorf("encryption failed: %v", err)
+	}
+
+	return encrypted, nil
+}
+
+// ECIESDecrypt decrypts data using ECIES with the given EdDSA private key
+func ECIESDecrypt(encryptedData []byte, ephemeralPub eddsa.PublicKey, privkey eddsa.PrivateKey) ([]byte, error) {
+	pubKeySize := 32
+
+	// Extract scalar from private key
+	const sizeFr = 32
+	privBytes := privkey.Bytes()
+	scalarBytes := privBytes[pubKeySize : pubKeySize+sizeFr]
+	scalar := new(big.Int).SetBytes(scalarBytes)
+
+	// Compute shared point: scalar * ephemeralPub.A
+	var sharedPoint bnt.PointAffine
+	sharedPoint.ScalarMultiplication(&ephemeralPub.A, scalar)
+
+	// Derive decryption key from shared point
+	xBytes := sharedPoint.X.Bytes()
+	yBytes := sharedPoint.Y.Bytes()
+
+	// Use scrypt to derive the same 32-byte key
+	sharedSecret := append(xBytes[:], yBytes[:]...)
+	key, err := scrypt.Key(sharedSecret, []byte("ecies"), 32768, 8, 1, 32)
+	if err != nil {
+		return nil, fmt.Errorf("key derivation failed: %v", err)
+	}
+	var keyArray [32]byte
+	copy(keyArray[:], key)
+
+	// Decrypt the data
+	decrypted, err := decryptRaw(encryptedData, &keyArray)
+
+	if err != nil {
+		return nil, fmt.Errorf("decryption failed: %v", err)
+	}
+
+	return decrypted, nil
 }
