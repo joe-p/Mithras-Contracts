@@ -6,7 +6,7 @@ from algopy.arc4 import Address, Bool, Byte, DynamicArray, StaticArray, abimetho
 
 Bytes32: typing.TypeAlias = StaticArray[Byte, typing.Literal[32]]
 
-CURVE_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+CURVE_MOD = 52435875175126190479447740508185965837690552500527637822603658699938581184513
 
 DEPOSIT_MINIMUM_AMOUNT = 1_000_000 # 1 Algo
 
@@ -19,7 +19,7 @@ MAX_LEAVES = 4_294_967_296
 # How many last roots to store so that concurrent verifiers can check their
 # proof without having their root overwritten by other transactions
 ROOTS_COUNT = 50
-INITIAL_ROOT = "0676f2e38c246dbb28249c0e0a9b843724d70b39d83a5e6dacc7830df75301a7"
+INITIAL_ROOT = "69b82629063ad12a6956e6652ff9ac7270a062dca43274cef9ba3cd0161c6c48"
 
 DEPOSIT_OPCODE_BUDGET_OPUP = 37_100
 WITHDRAWAL_OPCODE_BUDGET_OPUP = 109_600
@@ -228,38 +228,38 @@ class APP(py.ARC4Contract, avm_version=11):
         # The initial value for each node at each level of the tree
         # This is based on the mimc_bn254 hash of []byte{0}
         zero_hashes = StaticArray[Bytes32, typing.Literal[32]].from_bytes(Bytes.from_hex(
-            "2c7298fd87d3039ffea208538f6b297b60b373a63792b4cd0654fdc88fd0d6ee"
-            + "299efaa989f174feff2bbeab19c570216848e2ce4104be7c3fb9fdf8aa9de707"
-            + "26d972fcebd66eb80d0abcf0f8693cd26cf235afe7667ea57c4d5afd024c9253"
-            + "145355664318fec418eebeaf871abae0b6fd9daaafe57c4a996c78d6b6e899fe"
-            + "1e168dd00ae42c342d113730f6d03a9c817e07f9d53f5c667db6019869139b19"
-            + "0721348941259d9749e6158c2e1415f686478c99c302fad4a89013c9bed9383d"
-            + "1e36919cbca2c72a6985ba44cd7f903a3473309833a0db2d9ebc28911d1dc5af"
-            + "1e19f9b309d37cd0e485a51f245d90897455d915565015ec21555a573554fd99"
-            + "163307c51e5f49657d29c4c4182e5e15c5b00c112fc229a309ea228c7cb8f7af"
-            + "1ec84059f46d162c3bb2a26cdb7645683581082f23f04a70822770d927e1d9a9"
-            + "277246058e29ea281b59072bce46aa865f6645bcc2351484e91efd491e968f69"
-            + "25bade792d04a8ad56b011a4a2437bdf4e29115ef91615c98ff7db63f14f9edd"
-            + "12674d23ad24945abff7df5f6e26386588723c7fb868b57805fc30533a3e7e4e"
-            + "28731c90e764d86ba6b303ee880c033072caa89234a00353bb710469b8393723"
-            + "2bd7c9f78f6f2a6ead15292f8746597494de38a942ce3c410bbb810f1bb0b526"
-            + "23043138adbec7b44830018984fcbac393b02307e674580700042931cfac9b6f"
-            + "05f93648dbd103dfaca8b4a45a6122e5eccaa32aeb5a0833700de9a58f8cbf8c"
-            + "2d9918579c9fc07ecb6a07faf51b71b7df9dfb2c40a7fe2a6b4e2694dc7faf2d"
-            + "143f87908ad366917e86cd99282d9c48a436ec41745c94852e74c548fdecb2c9"
-            + "2ec6b723a0d20eda0ba7ba3bf54d16ae5aa8f962727c6653af724fe4f4bc4325"
-            + "11e77fce4a9991c23fd9f0c394c0aa8e75cf1ab9508ef2da9672bbd8ae2eccf7"
-            + "29e5fd751af86d5a3d97688bcb875c1b793fe94d2b037ab459ff4026f381f2ce"
-            + "03e29c0702b8344efb5c544ebfc7e5c45cd1e56dfec46abf0cabe50db26d91f3"
-            + "1e458ea5fa4b33c125acfe8e65e66f1a1b19c3c7c91f6053625066e72e364d4a"
-            + "058169ffe87b9033238369464bb6aea8ffd76c944dc3ed98ad9f3f2d91357968"
-            + "1deed12ae4b0dbf91581bb5d850cb97090d8f4f07058ca8c2358e432d4aaeb83"
-            + "12dbc9c2ccf91ae64f988a262506ff82c384d7524e9b51082c729a63db5d720c"
-            + "1af142d8178692351cd4c87b035b599d1f229a0dc76c9c4d0b7a8892f82bc623"
-            + "223c1b65a9b5ca5c15049272b0615356e257cd27c1d3bcba1c2bbb51630aeddf"
-            + "18975acea556edc9d0f21fbb083e4925022aea8dcfe87f0e74d90bf719c211fa"
-            + "1668002e9b319ea3a2f0ee2f110cb50a8cdfe50c76b54f3ec8d3de4bd56e5e6c"
-            + "0b2e261a8d90a8ef44279d729d9f1f3a54d9cb066b384cd2ac2d2780da27dcf1"
+            "27c70fc4d6c018c67445823ff54d0066c89f6d1170e14fe7357c630b61400bba"
+            + "1798faa10e47f00a54a38aa51e0c52cc9cbdf340490b663df1028cf9b29cdbc2"
+            + "476a8790581c4f1fc7defbd6b0510cdd8bc7b9f263f410f034b5a3813d052974"
+            + "39719788902f532fe7f0536121fefae16a821cd0c344900b06efb091d96fe359"
+            + "2e2351c1fa9f5e13542c4f9684b9da4cdd7c6aa66760a01bd46b3535fa0604d9"
+            + "3f5655b79a61f2f1a714552506048b5354377f5c87c963650459b4b63a770d70"
+            + "19fa466e7d65e06be70a38c13386cfd620e29281533af9d09d40c4fe8a930051"
+            + "13da6d4f7a92b808cd1e1b35fce02119b02ff1d0eaaec980003da484af3c8ab1"
+            + "28cb60753fc6f3d5eb9bb87a4313a3d93f9251de36ddf3a75ef111fce6b6194c"
+            + "18116eddd0e644ccb0b4e87e59a80aedea3ae183f6978f3941856af06a94f259"
+            + "5c1bdba112605706e8d8e871d0d397bfa3f4761e0be9a9ab00b1f3413b2e284e"
+            + "48c36c4a5893a3370cee0f754f966d872a3f8acc36beaae9e90384e24efa4a8e"
+            + "164697e84aa3a52210272144ba9336a9333f4b63408e51d30cafe2aba2c366f9"
+            + "724fd3de0f37c8806270960af839a04030edfbdd5d3910bd5c896c5b93ffe4ed"
+            + "0995618c2db4ff75dcc25b965cebf3136b0e2f0bcc90e8007191003fec42462f"
+            + "60da98263ff7f0771bb546348a2380a5298d4686af8b9112358c923c67e3e335"
+            + "6e37262a4a3d9ee5ca7eb6f43629a2a59cad77fb1e3f9abd6f7b957806dcd7ff"
+            + "1170ab6f29848ce2c6734a4b26d93bcae73537082aa61f462cc9c60391e29266"
+            + "5ff9968686efb1d5886172f89db10329532e1b9a2c0f454c5405ac699f53ec6f"
+            + "34301f4a76f70d58d83c30ed9e445aa4e55073fbc2fbfdd6fdaaabf15b7a84ac"
+            + "630fc5b9b0f1eafe6284ec7b71a6954025860b064926338b64e91c270c02aca6"
+            + "46ba7e6f4e62bf8a159ee76ad5af2ec49954b30be47b8242185400304a203f74"
+            + "1817c7ffe396dd41c2bbcaa261e3784b77719065816bd9995c4b7848dc463bf4"
+            + "4954d6d222dcd22fe50b94a41b270b7ba4e2331dabb9c8d4e74a06242c03f0b1"
+            + "06d4d94dcf25ff69d6364738721f0ec2926348faf1a3e210e6e7f533f35924f3"
+            + "0717a980d581f8b8fadfa3c7e4d3d02b96a6ebba60d5262a1d0dff81801d7a5b"
+            + "49ca89e9101b6b24028b8446d1f4e0a1e0c876bbb1465d6d92bf1902eb7fcb20"
+            + "108d23bd56b3f9fe73d0937b65771031f336720e13f7f29eea761abb1abf7961"
+            + "5eac992484f740da2418f00afad55e4c408601fb97a41801e80be77b5e7099ba"
+            + "1ded79556ad1c4d4cfe04703191909404a330c734960485d67c79a5e771d4875"
+            + "39cc71891bfafd73ab2739d77313eb430c3d0c3029d78037f08b3a199feec228"
+            + "609a95abf18b4c89281ddddd557b377fc87bf8cfda62aff1324abd4e86b73fbc"
         ))
 
         # if we are initializing the tree, set subtree to the zero hashes

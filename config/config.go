@@ -27,7 +27,7 @@ const (
 // transaction fees required
 const (
 	// # top level transactions needed for logicsig verifier opcode budget
-	VerifierTopLevelTxnNeeded = 8
+	VerifierTopLevelTxnNeeded = 10
 
 	// fees needed for a deposit transaction group
 	DepositMinFeeMultiplier = 56

@@ -34,16 +34,10 @@ Currently every transfer/withdrawal must specify a Mithras public key as the rec
 
 This would require the address executing the withdrawal to be a public input to the withdrawal circuit. The circuit would skip the EdDSA signature verification if an address is provided and verification would be done by the smart contract instead.
 
-### Switch to BLS12-381
-
-Currently the circuit uses BN254 and the baby jubjub curve. We should switch to BLS12-381 and the Bandersnatch curve which is a more modern curve that offers better security. 
-
-This is mainly blocked by https://github.com/giuliop/AlgoPlonk/pull/2. Once AlgoPlonk supports a larger BLS12-381 setup, we should be able to seamlessly switch to it.
-
 ### ASA Support
 
 This should be relatively straightforward to implement and just requires a commitment to the ASA ID in each transaction. The main challenge is determining how MBR should work.
 
 ### View Keys
 
-Currently an outside observer cannot determine the details of transactions without knowing all the secrets. This makes it hard to safely audit transactions and hard to users to determine their spendable balance. To solve this, we can add encrypted secrets to the Algorand transactions. The secrets would be encrypted with ECIES using a public key that is intended for viewing only. 
+Currently an outside observer cannot determine the details of transactions without knowing all the secrets. This makes it hard to safely audit transactions and hard to users to determine their spendable balance. To solve this, we can add encrypted secrets to the Algorand transactions. The secrets would be encrypted with ECIES using a public key that is intended for viewing only.
