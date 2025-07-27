@@ -107,7 +107,7 @@ func generateVerifier(curve ecc.ID, c *CircuitData) types.Address {
 	outdatedVerifier := utils.ShouldRecompile(verifierPath, c.CompiledPath)
 
 	if outdatedCircuit || outdatedVerifier {
-		compiledCircuit, err := ap.Compile(c.Circuit, curve, setup.Trusted)
+		compiledCircuit, err := ap.Compile(c.Circuit, curve, setup.PerpetualPowersOfTauBN254)
 		if err != nil {
 			log.Fatalf("Error compiling circuit for %s: %v", c.VerifierName, err)
 		}
