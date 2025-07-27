@@ -66,6 +66,18 @@ type EncryptedNote struct {
 	EphemeralPubkey []byte
 }
 
+func (n *EncryptedNote) Bytes() []byte {
+	bytes := []byte{}
+	bytes = append(bytes, n.EphemeralPubkey...)
+	bytes = append(bytes, n.EncryptedOutput...)
+	bytes = append(bytes, n.EncryptedInput...)
+	bytes = append(bytes, n.EncryptedAmount...)
+	bytes = append(bytes, n.EncryptedK...)
+	bytes = append(bytes, n.EncryptedR...)
+
+	return bytes
+}
+
 func (f *Frontend) MakeNullifier(note *Note) []byte {
 	return f.Tree.hashFunc(uint64ToBytes32(note.Amount), note.k)
 }
@@ -323,7 +335,7 @@ func (f *Frontend) TryRecoverNote(encryptedNote *EncryptedNote, privkey eddsa.Pr
 func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey eddsa.PublicKey, inputPrivkey eddsa.PrivateKey) (
 	*Deposit, error) {
 
-	note, _ := f.NewNote(amount, inputPrivkey, outputPubkey)
+	note, encryptedNote := f.NewNote(amount, inputPrivkey, outputPubkey)
 
 	x := outputPubkey.A.X.Bytes()
 	y := outputPubkey.A.Y.Bytes()
@@ -379,6 +391,7 @@ func (f *Frontend) SendDeposit(from *crypto.Account, amount uint64, outputPubkey
 			{AppID: f.App.Id, Name: []byte("subtree")},
 			{AppID: f.App.Id, Name: []byte("roots")},
 		},
+		Note: encryptedNote.Bytes(),
 	}
 	if err := atc.AddMethodCall(txnParams); err != nil {
 		return nil, fmt.Errorf("failed to add %s method call: %v", DepositMethod, err)
@@ -501,7 +514,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 	}
 
 	unspent := fromNote.Amount - withdrawalAmount - fee
-	unspentNote, _ := f.NewNote(unspent, *spenderPrivkey, spenderPrivkey.PublicKey)
+	unspentNote, encryptedUnspentNote := f.NewNote(unspent, *spenderPrivkey, spenderPrivkey.PublicKey)
 	unspentCommitment := unspentNote.commitment
 
 	spendNote, _ := f.NewNote(spendAmount, *spenderPrivkey, outputPubkey)
@@ -613,6 +626,7 @@ func (f *Frontend) SendWithdrawal(opts *WithdrawalOpts, spenderPrivkey *eddsa.Pr
 			{AppID: f.App.Id, Name: []byte("subtree")},
 			{AppID: f.App.Id, Name: []byte("roots")},
 		},
+		Note: encryptedUnspentNote.Bytes(),
 	}
 
 	var atc = transaction.AtomicTransactionComposer{}
