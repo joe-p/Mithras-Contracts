@@ -11,7 +11,6 @@ import (
 	"log"
 	"math/big"
 
-	bnt "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
@@ -170,29 +169,16 @@ func NewRandomNonce() []byte {
 }
 
 func (f *Frontend) NewNote(amount uint64, inputPrivKey eddsa.PrivateKey, outputPubkey eddsa.PublicKey) (*Note, *EncryptedNote) {
-	// Extract scalar from inputPrivKey.Bytes().
-	const pubSize = 32
 	const sizeFr = 32
-	privBytes := inputPrivKey.Bytes()
-	scalarBytes := privBytes[pubSize : pubSize+sizeFr]
-	scalar := new(big.Int).SetBytes(scalarBytes)
 
-	// Compute shared point: scalar * outputPubkey.A.
-	var sharedPoint bnt.PointAffine
-	sharedPoint.ScalarMultiplication(&outputPubkey.A, scalar)
+	kDomain := make([]byte, sizeFr)
+	rDomain := make([]byte, sizeFr)
+	kDomain[sizeFr-1] = 'k'
+	rDomain[sizeFr-1] = 'r'
 
-	xBytes := sharedPoint.X.Bytes()
-	yBytes := sharedPoint.Y.Bytes()
-	sharedSecret := f.Tree.hashFunc(xBytes[:], yBytes[:])
-
-	kDomain := make([]byte, 32)
-	rDomain := make([]byte, 32)
-	kDomain[31] = 'k'
-	rDomain[31] = 'r'
-
-	// TODO: Add sender, lv, lease to the K and R hashes
-	k := f.Tree.hashFunc(sharedSecret, kDomain)
-	r := f.Tree.hashFunc(sharedSecret, rDomain)
+	// TODO: Add sender, lv, lease to the K and R hashes to ensure uniqueness
+	k := f.Tree.hashFunc(NewRandomNonce(), kDomain)
+	r := f.Tree.hashFunc(NewRandomNonce(), rDomain)
 
 	commitment := f.MakeCommitment(amount, k, r, outputPubkey)
 
